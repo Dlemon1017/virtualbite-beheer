@@ -377,8 +377,12 @@
     huidig = null;
   }
 
-  function kopHtml(p) {
-    return '<button class="terug" data-actie="terug">‹ Terug</button>' +
+  /** Kop met het menu "⋯ Beheer" (alleen voor Dimitri; dicht, zodat een meekijkende partner het niet ziet). */
+  function kopHtml(p, metCf) {
+    return '<div class="kop-balk"><button class="terug" data-actie="terug">‹ Terug</button>' +
+      '<button type="button" class="klein-knop" data-actie="beheermenu" aria-expanded="false" aria-controls="beheerMenu">⋯ Beheer</button></div>' +
+      '<div class="kaart beheermenu" id="beheerMenu" hidden><h2>Beheer (alleen Virtualbite)</h2>' +
+      partnerKaartVelden(p, !p.mag_bewerken, !metCf) + '</div>' +
       '<div class="kop-detail"><div><p class="merk">' + esc(p.id) + ' · ' +
       (p.route === 'samen' ? 'samen invullen' : 'partner vult zelf in') + '</p><h1>' + esc(naamVan(p) || p.id) + '</h1></div>' +
       badge(p.status) + '</div>';
@@ -659,7 +663,7 @@
   // ---------- Scherm 1: formulier (samen invullen) ----------
   function toonFormulier(p) {
     var uit = !p.mag_bewerken;
-    var h = kopHtml(p) + statusUitleg(p);
+    var h = kopHtml(p, true) + statusUitleg(p);
     if (p.testmodus && !uit) h += '<button type="button" class="klein-knop mt" data-actie="testgegevens">Vul testgegevens in</button>';
     FORMULIER_STAPPEN.forEach(function (stap) {
       h += '<section class="kaart"><h2>' + esc(stap.titel) + '</h2>' + stapVelden(stap, p, uit) +
@@ -667,7 +671,6 @@
           '<div class="klein afstand-status" id="afstandStatus" hidden></div>' : '') + '</section>';
     });
     h += '<div class="acties"><button class="knop hoofd" data-actie="ingevuld">Ingevuld</button></div>';
-    h += '<details class="kaart beheerdeel"><summary>Gegevens Virtualbite</summary>' + partnerKaartVelden(p, uit) + '</details>';
     $('detailInhoud').innerHTML = h;
     werkZichtbaarheidBij();
     toonMarkering(p.markering, false);
@@ -713,7 +716,7 @@
   // ---------- Scherm 3: controle (Dimitri) ----------
   function toonControle(p) {
     var uit = p.status !== 'Wacht op controle';
-    var h = kopHtml(p) + statusUitleg(p);
+    var h = kopHtml(p, false) + statusUitleg(p);
     h += '<section class="kaart" id="controle"><h2>In te vullen door Virtualbite</h2>' + controleVelden(p, uit) + '</section>';
     h += '<div id="controleFouten"></div>';
     FORMULIER_STAPPEN.forEach(function (stap, i) {
@@ -724,7 +727,6 @@
           '" data-stap="' + i + '">' + (open ? 'Klaar' : 'Wijzig') + '</button>') + '</div>' +
         (open ? stapVelden(stap, p, false) : samenvatting(stap, p)) + '</section>';
     });
-    h += '<details class="kaart beheerdeel"><summary>Partner (naam, e-mail, doorsturen)</summary>' + partnerKaartVelden(p, uit, true) + '</details>';
     if (!uit) h += '<div class="acties"><button class="knop hoofd" data-actie="akkoord">Akkoord</button></div>';
     $('detailInhoud').innerHTML = h;
     werkZichtbaarheidBij();
@@ -827,6 +829,12 @@
   var timers = {};
   var wachtend = {}; // veld → opslaan dat nog moet gebeuren (na de korte pauze bij typen)
   var lopend = {};   // veld → {bezig: Promise | null, volgende: {waarde} | null}
+  var laatsteVolgnr = 0;
+  /** Oplopend volgnummer: de server negeert een opslagverzoek dat ouder is dan het laatst verwerkte voor dat veld. */
+  function nieuwVolgnr() {
+    laatsteVolgnr = Math.max(laatsteVolgnr + 1, Date.now() * 1000);
+    return laatsteVolgnr;
+  }
 
   /**
    * Klaar met opslaan? Wacht tot er per veld geen verzoek meer onderweg is (ook als er intussen een nieuwer verzoek
@@ -897,9 +905,10 @@
       if (huidig && huidig.id === id) verstuur(veld, v);
       return true;
     };
-    s.bezig = roep('bewaar', [id, veld, waarde]).then(function (r) {
+    s.bezig = roep('bewaar', [id, veld, waarde, nieuwVolgnr()]).then(function (r) {
       if (volgende()) return; // er is al een nieuwere waarde: dit antwoord is verouderd
       if (!huidig || huidig.id !== id) return;
+      if (r.verouderd) { zetStatus(veld, 'Opgeslagen', 'ok'); return; } // een nieuwere waarde staat al op de server
       verwerkOpgeslagen(veld, r, id);
     }, function (e) {
       if (volgende()) return;
@@ -913,8 +922,10 @@
     var d = veldDef(veld);
     // Keuzes, vinkjes, tijden en postcoderegels: wat op het scherm staat is leidend (niet overschrijven).
     if (!d || ['keuze', 'vinkje', 'tijden', 'postcoderegels'].indexOf(d.soort) === -1) huidig[veld] = r.waarde;
+    // Rood = blokkeert "Ingevuld" (zelfde regels als de server); geel = alleen een waarschuwing.
+    var nietBlokkerend = veld === 'bezorgtijden';
     var melding = r.fout_extern || r.waarschuwing;
-    zetStatus(veld, melding || r.info || 'Opgeslagen', melding ? 'fout' : 'ok');
+    zetStatus(veld, melding || r.info || 'Opgeslagen', melding ? (nietBlokkerend && !r.fout_extern ? 'let' : 'fout') : 'ok');
     if (veld === 'bsn') toonBsnOpgeslagen(r.waarde);
     if (veld === 'btw_id') { huidig.btw_vies = ''; if (r.waarde) controleerBtw(id); }
     if (veld === 'customer_facing_email' || veld === 'email_doorsturen') {
@@ -931,9 +942,9 @@
     roep('controleerBtw', [id]).then(function (r) {
       if (!huidig || huidig.id !== id) return;
       if (r.btw_vies !== undefined) huidig.btw_vies = r.btw_vies;
-      zetStatus('btw_id', r.fout || r.waarschuwing || r.info || 'Opgeslagen', r.fout || r.waarschuwing ? 'fout' : 'ok');
+      zetStatus('btw_id', r.fout || r.waarschuwing || r.info || 'Opgeslagen', r.fout ? 'fout' : r.waarschuwing ? 'let' : 'ok');
     }).catch(function () {
-      zetStatus('btw_id', 'BTW-nummer kon nu niet bij de EU worden gecontroleerd; we proberen het later opnieuw.', 'fout');
+      zetStatus('btw_id', 'BTW-nummer kon nu niet bij de EU worden gecontroleerd; we proberen het later opnieuw.', 'let');
     });
   }
 
@@ -999,7 +1010,13 @@
   }
 
   // ---------- Hoofdknoppen: groen als alles klopt, anders gedimd (wel klikbaar: dan verschijnen de meldingen) ----------
+  function heeftRodeMelding() {
+    return Array.prototype.some.call(document.querySelectorAll('#detailInhoud .veld-status.fout, #detailInhoud .fout'),
+      function (el) { return el.textContent.trim() && !el.closest('[hidden]'); });
+  }
+
   function klaarVoorIngevuld() {
+    if (heeftRodeMelding()) return false;
     var g = Object.assign({}, huidig);
     if (huidig.heeft_bsn && !g.bsn) g.bsn = '111222333'; // opgeslagen BSN (gemaskeerd): telt als ingevuld
     return valideerPartnerFormulier(g).ok;
@@ -1126,6 +1143,12 @@
     }
     if (actie === 'wijzig-bsn') { $('bsn-tonen').hidden = true; $('v-bsn').hidden = false; $('v-bsn').focus(); return; }
     if (actie === 'afstanden') { planAfstanden(true); return; }
+    if (actie === 'beheermenu') {
+      var menu = $('beheerMenu');
+      menu.hidden = !menu.hidden;
+      knop.setAttribute('aria-expanded', String(!menu.hidden));
+      return;
+    }
     if (actie === 'pc-erbij') {
       var aantal = document.querySelectorAll('[data-pcregel]').length;
       if (aantal < MAX_POSTCODEREGELS) {
@@ -1179,29 +1202,31 @@
     }
   });
 
-  /** Eerst wachten tot alles is opgeslagen, dan de actie. Bij fouten: per veld tonen en naar de eerste scrollen. */
+  /** Naam van een veld voor meldingen. */
+  function veldLabel(v) {
+    var d = veldDef(v);
+    return d ? d.label : EXTRA_LABELS[v] || v;
+  }
+
+  /** "Nog 1 ding: e-mail voor facturen." / "Nog 3 dingen: a, b en c." */
+  function samenvattingFouten(fouten) {
+    var labels = Object.keys(fouten).map(function (v) { return veldLabel(v).replace(/[.?!:]+$/, ''); });
+    var lijst = labels.length < 2 ? labels[0] : labels.slice(0, -1).join(', ') + ' en ' + labels[labels.length - 1];
+    return (labels.length === 1 ? 'Nog 1 ding: ' : 'Nog ' + labels.length + ' dingen: ') + lijst + '.';
+  }
+
+  /**
+   * Eerst wachten tot alles is opgeslagen, dan de actie. Bij fouten: de gegevens opnieuw van de server laden (zodat het
+   * scherm toont wat de server controleert), het blok met het eerste probleem openklappen, per veld een melding,
+   * naar het eerste probleem scrollen en onderaan samenvatten wat er mist.
+   */
   function statusActie(knop, fn, bezigTekst, klaarTekst) {
     var herstel = bezig(knop, bezigTekst);
     var id = huidig.id;
     var route = huidig.route;
     slaWachtendOp().then(function () { return roep(fn, [id]); }).then(function (r) {
       herstel();
-      if (r.fouten) {
-        if (fn === 'akkoord') {
-          // Fout in een blok dat dicht staat: dat blok openen.
-          var stap = FORMULIER_STAPPEN.map(function (s) { return s.velden.some(function (d) { return r.fouten[d.veld]; }); }).indexOf(true);
-          if (stap !== -1 && FORMULIER_STAPPEN[stap].titel !== 'Bezorggebied' && bewerkStap !== stap) {
-            bewerkStap = stap;
-            toonControle(huidig);
-          }
-          toonControleFouten(r.fouten);
-        }
-        Object.keys(r.fouten).forEach(function (v) { zetStatus(v, r.fouten[v], 'fout'); });
-        var eerste = document.querySelector('#detailInhoud .veld-status.fout');
-        if (eerste) eerste.closest('.veld').scrollIntoView({ behavior: 'smooth', block: 'center' });
-        toon('Nog niet alles is goed ingevuld.', true);
-        return;
-      }
+      if (r.fouten) return toonFouten(id, fn, r.fouten);
       huidig = r;
       if (fn === 'ingevuld' && route === 'samen') { toonAfronden(); return; }
       toon(klaarTekst || 'Ingevuld. Status: Wacht op controle.');
@@ -1209,6 +1234,23 @@
       toonDetail(r);
       $('detail').scrollTop = 0;
     }).catch(function (err) { herstel(); toon(err.message, true); });
+  }
+
+  function toonFouten(id, fn, fouten) {
+    return roep('detail', [id]).then(function (p) {
+      if (fn === 'akkoord') {
+        var stap = FORMULIER_STAPPEN.map(function (st) { return st.velden.some(function (d) { return fouten[d.veld]; }); }).indexOf(true);
+        if (stap !== -1 && FORMULIER_STAPPEN[stap].titel !== 'Bezorggebied') bewerkStap = stap;
+      }
+      toonDetail(p);
+      if (fn === 'akkoord') toonControleFouten(fouten);
+      Object.keys(fouten).forEach(function (v) { zetStatus(v, fouten[v], 'fout'); });
+      werkKnoppenBij();
+      var eerste = Array.prototype.filter.call(document.querySelectorAll('#detailInhoud .veld-status.fout'),
+        function (el) { return !el.closest('[hidden]'); })[0];
+      if (eerste) eerste.closest('.veld').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      toon(samenvattingFouten(fouten), true);
+    }).catch(function () { toon(samenvattingFouten(fouten), true); });
   }
 
   // ---------- Start ----------

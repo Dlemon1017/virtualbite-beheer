@@ -198,3 +198,7 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .afstanden div { padding: 1px 0; }
 .afstand-status { color: var(--zacht); margin-top: 8px; }
 .afstanden div { padding: 1px 0; }
+.kop-balk { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+.kop-balk .terug { margin-bottom: 0; }
+.beheermenu { margin: 0 0 16px; border-style: dashed; }
+.veld-status.let { color: var(--geel); }
