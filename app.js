@@ -589,7 +589,9 @@
       var h = '';
       if (beheer && r.postcodes.length) {
         h += '<div class="afstanden">' + r.postcodes.map(function (x) {
-          var km = x.km === null ? 'onbekend' : String(x.km).replace('.', ',') + ' km' + (x.schatting ? ' (schatting)' : '');
+          var nl = function (v) { return String(v).replace('.', ','); };
+          var km = x.km === null ? 'onbekend' : nl(x.km) + ' km' + (x.schatting ? ' (schatting)' : '') +
+            (x.min !== null && x.min !== undefined ? ' (ca. ' + nl(x.min) + '–' + nl(x.max) + ' km)' : '');
           return '<span class="' + (x.km !== null && x.km > m.grens_km ? 'ver' : '') + '">' + x.pc + ': ' + esc(km) + '</span>';
         }).join(' · ') + '</div>';
       }

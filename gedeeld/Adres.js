@@ -80,3 +80,14 @@ function huisnummerMetToevoeging(huisnummer, toevoeging) {
   if (!t) return nr;
   return nr + (/^\d/.test(t) ? '-' : '') + t;
 }
+
+/**
+ * Bereik van een postcodegebied gezien vanaf `van`: dichtstbijzijnde en verste punt (6-cijferige postcodes),
+ * hemelsbreed × factor (schatting van de rijafstand). Geeft {min, max} in km met 1 decimaal, of null zonder punten.
+ */
+function bereikKm(van, punten, factor) {
+  var km = (punten || []).filter(Boolean).map(function (p) { return hemelsbreedKm(van, p) * (factor || 1.3); });
+  if (!km.length) return null;
+  var r = function (x) { return Math.round(x * 10) / 10; };
+  return { min: r(Math.min.apply(null, km)), max: r(Math.max.apply(null, km)) };
+}
