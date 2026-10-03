@@ -164,7 +164,7 @@ function markeerRijen(rijen, afstanden, grensKm) {
     var lijst = leesPostcodes(r.postcodes).postcodes.map(function (pc) {
       var a = (afstanden || {})[pc] || {};
       return { pc: pc, km: typeof a.km === 'number' ? a.km : null, schatting: !!a.schatting,
-        min: typeof a.min === 'number' ? a.min : null, max: typeof a.max === 'number' ? a.max : null };
+        min: typeof a.min === 'number' ? a.min : null, max: typeof a.max === 'number' ? a.max : null, wijk: a.wijk || '' };
     });
     return {
       boven: lijst.some(function (x) { return x.km !== null && x.km > grensKm; }),

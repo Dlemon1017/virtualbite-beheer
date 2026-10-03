@@ -91,3 +91,28 @@ function bereikKm(van, punten, factor) {
   var r = function (x) { return Math.round(x * 10) / 10; };
   return { min: r(Math.min.apply(null, km)), max: r(Math.max.apply(null, km)) };
 }
+
+/** Adressen in een 4-cijferig gebied met wijk- en buurtnaam (steekproef van 100, voor de wijknaam). */
+function pdokWijkUrl(pc4) {
+  return /^[1-9]\d{3}$/.test(String(pc4)) ? PDOK_ZOEK_URL + '?q=*&fq=type:adres&fq=postcode:' + pc4 +
+    '*&fl=wijknaam,buurtnaam&rows=' + PDOK_MAX_ROWS : '';
+}
+
+/** Meest voorkomende waarde ('' als er geen is). */
+function meestVoorkomend_(lijst) {
+  var tel = {};
+  var beste = '';
+  lijst.filter(Boolean).forEach(function (w) {
+    tel[w] = (tel[w] || 0) + 1;
+    if (!beste || tel[w] > tel[beste]) beste = w;
+  });
+  return beste;
+}
+
+/** Wijknaam van een postcodegebied uit PDOK-adressen; bij "Buitengebied" met de meest voorkomende buurt erbij. */
+function wijkUitDocs(docs) {
+  var wijk = meestVoorkomend_((docs || []).map(function (d) { return d.wijknaam; }));
+  var buurt = meestVoorkomend_((docs || []).map(function (d) { return d.buurtnaam; }));
+  if (!wijk) return buurt;
+  return /buitengebied/i.test(wijk) && buurt ? wijk + ' (' + buurt + ')' : wijk;
+}

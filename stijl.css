@@ -194,3 +194,7 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
   box-shadow: inset 0 0 0 1px var(--accent); font-weight: 600; }
 .vink-regel input { accent-color: var(--accent); }
 .veld-status.ok { color: var(--groen); }
+.afstand-status { color: var(--zacht); margin-top: 8px; }
+.afstanden div { padding: 1px 0; }
+.afstand-status { color: var(--zacht); margin-top: 8px; }
+.afstanden div { padding: 1px 0; }

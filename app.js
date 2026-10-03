@@ -602,35 +602,58 @@
           var nl = function (v) { return String(v).replace('.', ','); };
           var km = x.km === null ? 'onbekend' : nl(x.km) + ' km' + (x.schatting ? ' (schatting)' : '') +
             (x.min !== null && x.min !== undefined ? ' (ca. ' + nl(x.min) + '–' + nl(x.max) + ' km)' : '');
-          return '<span class="' + (x.km !== null && x.km > m.grens_km ? 'ver' : '') + '">' + x.pc + ': ' + esc(km) + '</span>';
-        }).join(' · ') + '</div>';
+          return '<div class="' + (x.km !== null && x.km > m.grens_km ? 'ver' : '') + '">' + x.pc + (x.wijk ? ' – ' + esc(x.wijk) : '') +
+            ': ' + esc(km) + '</div>';
+        }).join('') + '</div>';
       }
       el.innerHTML = h;
       el.hidden = !h;
     });
     var info = $('afstandInfo');
     if (info) {
-      info.textContent = m.fout || (m.te_veel ? 'Meer dan 60 postcodes: niet alle afstanden zijn berekend.' : '');
+      info.textContent = m.fout || (m.te_veel ? 'Meer dan 60 postcodes: niet alle afstanden zijn berekend.' :
+        beheer && m.vanaf ? 'Afstanden vanaf ' + m.vanaf + '.' : '');
       info.hidden = !info.textContent;
     }
   }
 
   var afstandTimer = null;
+  var afstandNr = 0;
+
+  function zetAfstandStatus(tekst, metKnop) {
+    var el = $('afstandStatus');
+    if (!el) return;
+    el.innerHTML = tekst ? esc(tekst) + (metKnop ? ' <button type="button" class="klein-knop" data-actie="afstanden">Opnieuw ' +
+      'proberen</button>' : '') : '';
+    el.hidden = !tekst;
+  }
+
+  /**
+   * Afstanden berekenen, los van het opslaan (na een korte pauze in typen). In het formulier gaan de postcoderegels
+   * zoals ze nu op het scherm staan mee. De server doet per keer hooguit 8 nieuwe postcodes; zolang het onvolledig is
+   * vragen we door. Alleen het antwoord op het laatste verzoek telt.
+   */
   function planAfstanden(direct) {
     clearTimeout(afstandTimer);
+    if (!huidig) return;
+    afstandTimer = setTimeout(function () { haalAfstanden(++afstandNr, 0); }, direct ? 0 : 1200);
+  }
+
+  function haalAfstanden(nr, ronde) {
     var id = huidig && huidig.id;
-    if (!id) return;
-    afstandTimer = setTimeout(function () {
-      var bezig = $('afstandBezig');
-      if (bezig) bezig.hidden = false;
-      reeks.then(function () { return roep('afstanden', [id]); }).then(function (r) {
-        if (bezig) bezig.hidden = true;
-        if (!huidig || huidig.id !== id) return;
-        huidig.markering = r.markering;
-        toonMarkering(r.markering, $('controle') !== null);
-        if (r.melding) toon(r.melding, true);
-      }).catch(function () { if (bezig) bezig.hidden = true; });
-    }, direct ? 0 : 1500);
+    if (!id || nr !== afstandNr) return;
+    var regels = document.querySelector('[data-pcregel]') ? pcRegelsUitScherm() : null;
+    zetAfstandStatus('Afstanden berekenen…');
+    roep('afstanden', [id, regels]).then(function (r) {
+      if (nr !== afstandNr || !huidig || huidig.id !== id) return;
+      huidig.markering = r.markering;
+      toonMarkering(r.markering, $('controle') !== null);
+      if (r.onvolledig && ronde < 10) { haalAfstanden(nr, ronde + 1); return; }
+      zetAfstandStatus(r.melding ? 'Afstanden berekenen lukte niet.' : '', !!r.melding);
+    }).catch(function () {
+      if (nr !== afstandNr) return;
+      zetAfstandStatus('Afstanden berekenen lukte niet: de server van Google reageert even niet.', true);
+    });
   }
 
   // ---------- Scherm 1: formulier (samen invullen) ----------
@@ -640,7 +663,8 @@
     if (p.testmodus && !uit) h += '<button type="button" class="klein-knop mt" data-actie="testgegevens">Vul testgegevens in</button>';
     FORMULIER_STAPPEN.forEach(function (stap) {
       h += '<section class="kaart"><h2>' + esc(stap.titel) + '</h2>' + stapVelden(stap, p, uit) +
-        (stap.titel === 'Bezorggebied' ? '<div class="klein" id="afstandInfo" hidden></div>' : '') + '</section>';
+        (stap.titel === 'Bezorggebied' ? '<div class="klein" id="afstandInfo" hidden></div>' +
+          '<div class="klein afstand-status" id="afstandStatus" hidden></div>' : '') + '</section>';
     });
     h += '<div class="acties"><button class="knop hoofd" data-actie="ingevuld">Ingevuld</button></div>';
     h += '<details class="kaart beheerdeel"><summary>Gegevens Virtualbite</summary>' + partnerKaartVelden(p, uit) + '</details>';
@@ -734,7 +758,7 @@
         (uit ? '' : '<button type="button" class="klein-knop mt" data-actie="uitzondering">' +
           (heeftUitzondering ? 'Uitzondering verwijderen' : 'Uitzondering openingstijden') + '</button>') + '</div>' +
       '<div class="veld" data-rij="bezorggebied"><div class="label">Bezorggebied en bedragen per rij</div>' + rijenHtml(p, uit) +
-        '<div class="klein" id="afstandInfo" hidden></div><div class="klein" id="afstandBezig" hidden>Afstanden berekenen…</div>' +
+        '<div class="klein" id="afstandInfo" hidden></div><div class="klein afstand-status" id="afstandStatus" hidden></div>' +
         (uit ? '' : '<button type="button" class="klein-knop mt" data-actie="afstanden">Afstanden opnieuw berekenen</button>') +
         '<div class="veld-status" data-status="bezorggebied"></div></div>';
   }
@@ -802,7 +826,17 @@
   // ---------- Directe controle en automatisch opslaan ----------
   var timers = {};
   var wachtend = {}; // veld → opslaan dat nog moet gebeuren (na de korte pauze bij typen)
-  var reeks = Promise.resolve(); // opslaan na elkaar, in volgorde
+  var lopend = {};   // veld → {bezig: Promise | null, volgende: {waarde} | null}
+
+  /**
+   * Klaar met opslaan? Wacht tot er per veld geen verzoek meer onderweg is (ook als er intussen een nieuwer verzoek
+   * voor hetzelfde veld is gestart).
+   */
+  function wachtTotOpgeslagen() {
+    var bezig = Object.keys(lopend).map(function (v) { return lopend[v].bezig; }).filter(Boolean);
+    if (!bezig.length) return Promise.resolve();
+    return Promise.all(bezig.map(function (b) { return b.catch(function () {}); })).then(wachtTotOpgeslagen);
+  }
 
   /** Alles wat nog wacht nu opslaan (vóór "Ingevuld", "Akkoord" of een ander scherm). */
   function slaWachtendOp() {
@@ -812,7 +846,7 @@
       delete wachtend[v];
       doe();
     });
-    return reeks;
+    return wachtTotOpgeslagen();
   }
 
   function zetStatus(veld, tekst, soort) {
@@ -838,34 +872,57 @@
 
   var ADRES_VELDEN = /^(vestiging|locatie)_(postcode|huisnummer|toevoeging|straat|plaats)$/;
 
+  /**
+   * Veld opslaan. Per veld is er hooguit één verzoek onderweg; komt er intussen een nieuwe waarde (snel klikken),
+   * dan gaat alleen de laatste daarna nog. Antwoorden op oudere waarden worden genegeerd: de laatste klik wint en
+   * het scherm (lokale keuze) blijft leidend. "Opslaan…" eindigt altijd in "Opgeslagen" of een melding.
+   */
   function bewaar(veld, waarde, direct) {
     if (!huidig || !huidig.mag_bewerken) return;
     clearTimeout(timers[veld]);
-    var id = huidig.id;
-    var doe = function () {
-      delete wachtend[veld];
-      zetStatus(veld, 'Opslaan…');
-      reeks = reeks.then(function () {
-        return roep('bewaar', [id, veld, waarde]).then(function (r) {
-          if (!huidig || huidig.id !== id) return;
-          if (r.fout) { zetStatus(veld, r.fout, 'fout'); return; }
-          huidig[veld] = r.waarde;
-          var melding = r.fout_extern || r.waarschuwing;
-          zetStatus(veld, melding || r.info || 'Opgeslagen', melding ? 'fout' : 'ok');
-          if (veld === 'bsn') toonBsnOpgeslagen(r.waarde);
-          if (veld === 'btw_id') { huidig.btw_vies = ''; if (r.waarde) controleerBtw(id); }
-          if (veld === 'customer_facing_email' || veld === 'email_doorsturen') {
-            var el = document.querySelector('[data-veld="' + veld + '"]');
-            if (el && document.activeElement !== el) el.value = r.waarde;
-          }
-          if (veld === 'bezorggebied' || veld === 'postcodes_gewenst' || veld === 'locatie_zelfde' || ADRES_VELDEN.test(veld)) planAfstanden();
-        }).catch(function (e) {
-          zetStatus(veld, e.message === STORING ? 'Opslaan lukte niet: de server van Google reageert even niet. Pas het veld ' +
-            'opnieuw aan of probeer het zo opnieuw.' : e.message, 'fout');
-        });
-      });
-    };
+    var doe = function () { delete wachtend[veld]; verstuur(veld, waarde); };
     if (direct) doe(); else { wachtend[veld] = doe; timers[veld] = setTimeout(doe, 900); }
+  }
+
+  function verstuur(veld, waarde) {
+    var s = lopend[veld] || (lopend[veld] = { bezig: null, volgende: null });
+    zetStatus(veld, 'Opslaan…');
+    if (s.bezig) { s.volgende = { waarde: waarde }; return; }
+    var id = huidig.id;
+    var volgende = function () {
+      s.bezig = null;
+      if (!s.volgende) return false;
+      var v = s.volgende.waarde;
+      s.volgende = null;
+      if (huidig && huidig.id === id) verstuur(veld, v);
+      return true;
+    };
+    s.bezig = roep('bewaar', [id, veld, waarde]).then(function (r) {
+      if (volgende()) return; // er is al een nieuwere waarde: dit antwoord is verouderd
+      if (!huidig || huidig.id !== id) return;
+      verwerkOpgeslagen(veld, r, id);
+    }, function (e) {
+      if (volgende()) return;
+      zetStatus(veld, e.message === STORING ? 'Opslaan lukte niet: de server van Google reageert even niet. Pas het veld ' +
+        'opnieuw aan of probeer het zo opnieuw.' : e.message, 'fout');
+    });
+  }
+
+  function verwerkOpgeslagen(veld, r, id) {
+    if (r.fout) { zetStatus(veld, r.fout, 'fout'); return; }
+    var d = veldDef(veld);
+    // Keuzes, vinkjes, tijden en postcoderegels: wat op het scherm staat is leidend (niet overschrijven).
+    if (!d || ['keuze', 'vinkje', 'tijden', 'postcoderegels'].indexOf(d.soort) === -1) huidig[veld] = r.waarde;
+    var melding = r.fout_extern || r.waarschuwing;
+    zetStatus(veld, melding || r.info || 'Opgeslagen', melding ? 'fout' : 'ok');
+    if (veld === 'bsn') toonBsnOpgeslagen(r.waarde);
+    if (veld === 'btw_id') { huidig.btw_vies = ''; if (r.waarde) controleerBtw(id); }
+    if (veld === 'customer_facing_email' || veld === 'email_doorsturen') {
+      var el = document.querySelector('[data-veld="' + veld + '"]');
+      if (el && document.activeElement !== el) el.value = r.waarde;
+    }
+    if (veld === 'bezorggebied' || veld === 'locatie_zelfde' || ADRES_VELDEN.test(veld)) planAfstanden();
+    werkKnoppenBij();
   }
 
   /** VIES-controle (los van het opslaan). Een storing blokkeert niet: nette melding, later opnieuw. */
@@ -1003,6 +1060,7 @@
       huidig.postcodes_gewenst = pcRegelsUitScherm().filter(Boolean).join('\n');
       toonMarkering(huidig.markering, false); // oude melding van een gewiste/gewijzigde regel meteen weg
       bewaar('postcodes_gewenst', pcRegelsUitScherm());
+      planAfstanden();
     } else if (el.closest('[data-tijden]')) {
       werkTijdVoorbeeldenBij(el.closest('[data-tijden]'));
       var vak = el.closest('[data-tijden]').getAttribute('data-tijden');
@@ -1079,7 +1137,7 @@
     }
     if (actie === 'testgegevens') {
       var herstel = bezig(knop, 'Invullen…');
-      reeks.then(function () { return roep('testgegevens', [huidig.id]); }).then(function (r) {
+      wachtTotOpgeslagen().then(function () { return roep('testgegevens', [huidig.id]); }).then(function (r) {
         herstel(); toon('Testgegevens ingevuld.'); toonDetail(r);
       }).catch(function (err) { herstel(); toon(err.message, true); });
       return;
