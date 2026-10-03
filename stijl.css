@@ -7,6 +7,8 @@
   --paars-bg: #efe8fb; --paars: #5b3aa3; --groen-bg: #e3f4e8; --groen: #1d6b38;
   --grijs-bg: #ececea; --grijs: #6b6b66; --rood: #c4302b; --rood-bg: #fbe9e8;
   --schaduw: 0 12px 40px rgba(0,0,0,.18);
+  /* Accent: techie-groen. --groen is de tekstkleur (donkerder in licht thema, voor leesbaarheid). */
+  --accent: #22C55E; --accent-tekst: #052e16; --accent-zacht: rgba(34, 197, 94, .12); --groen: #15803d;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -17,6 +19,7 @@
     --paars-bg: #2c2240; --paars: #c9adf7; --groen-bg: #16301f; --groen: #7fd49a;
     --grijs-bg: #262624; --grijs: #a8a8a2; --rood: #ff7b72; --rood-bg: #3a1d1b;
     --schaduw: 0 12px 40px rgba(0,0,0,.6);
+    --accent-zacht: rgba(34, 197, 94, .16); --groen: #22C55E;
   }
 }
 * { box-sizing: border-box; }
@@ -181,3 +184,13 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .pc-regel:first-child label { margin-top: 6px; }
 .tijden { margin-top: 6px; }
 .grens-uitleg { color: var(--geel); font-size: 13px; margin-top: 10px; }
+
+/* Accentkleur: hoofdknoppen groen als alles klopt, anders gedimd (blijven klikbaar) */
+.knop.hoofd { background: var(--grijs-bg); color: var(--zacht); }
+.knop.hoofd.klaar { background: var(--accent); color: var(--accent-tekst); }
+.knop.hoofd:disabled { opacity: .6; }
+/* Gekozen keuzeknoppen: groene rand + lichte groene tint */
+.keuze button[aria-pressed="true"] { background: var(--accent-zacht); color: var(--tekst); border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent); font-weight: 600; }
+.vink-regel input { accent-color: var(--accent); }
+.veld-status.ok { color: var(--groen); }

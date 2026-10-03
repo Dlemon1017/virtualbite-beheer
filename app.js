@@ -231,6 +231,7 @@
     resetNieuw();
     $('nieuw').hidden = false;
     $('nieuwKnop').hidden = true;
+    werkAanmakenBij();
     $('n-naam').focus();
   });
   $('n-annuleer').addEventListener('click', function () { $('nieuw').hidden = true; $('nieuwKnop').hidden = false; });
@@ -262,6 +263,15 @@
     nieuwRoute = b.getAttribute('data-waarde');
     zetKeuze($('n-route'), nieuwRoute);
     $('nieuw').querySelector('[data-fout="route"]').textContent = '';
+  });
+
+  function werkAanmakenBij() {
+    var klaar = $('n-naam').value.trim().length >= 2 && !!normaliseerEmail($('n-email').value) &&
+      $('n-stad').value.trim().length >= 2 && !!normaliseerCfAdres($('n-cf').value, inst.cf_domein) && !!nieuwRoute;
+    $('n-maak').classList.toggle('klaar', klaar);
+  }
+  ['input', 'click'].forEach(function (t) {
+    $('nieuw').addEventListener(t, function () { setTimeout(werkAanmakenBij, 0); });
   });
 
   $('nieuw').addEventListener('submit', function (e) {
@@ -632,11 +642,12 @@
       h += '<section class="kaart"><h2>' + esc(stap.titel) + '</h2>' + stapVelden(stap, p, uit) +
         (stap.titel === 'Bezorggebied' ? '<div class="klein" id="afstandInfo" hidden></div>' : '') + '</section>';
     });
-    h += '<div class="acties"><button class="knop" data-actie="ingevuld">Ingevuld</button></div>';
+    h += '<div class="acties"><button class="knop hoofd" data-actie="ingevuld">Ingevuld</button></div>';
     h += '<details class="kaart beheerdeel"><summary>Gegevens Virtualbite</summary>' + partnerKaartVelden(p, uit) + '</details>';
     $('detailInhoud').innerHTML = h;
     werkZichtbaarheidBij();
     toonMarkering(p.markering, false);
+    werkKnoppenBij();
   }
 
   function partnerKaartVelden(p, uit, zonderCf) {
@@ -690,12 +701,13 @@
         (open ? stapVelden(stap, p, false) : samenvatting(stap, p)) + '</section>';
     });
     h += '<details class="kaart beheerdeel"><summary>Partner (naam, e-mail, doorsturen)</summary>' + partnerKaartVelden(p, uit, true) + '</details>';
-    if (!uit) h += '<div class="acties"><button class="knop" data-actie="akkoord">Akkoord</button></div>';
+    if (!uit) h += '<div class="acties"><button class="knop hoofd" data-actie="akkoord">Akkoord</button></div>';
     $('detailInhoud').innerHTML = h;
     werkZichtbaarheidBij();
     toonMarkering(p.markering, true);
     werkVoorbeeldBij();
     toonControleFouten(p.controle_fouten, p.waarschuwingen_formulier);
+    werkKnoppenBij();
   }
 
   function controleVelden(p, uit) {
@@ -929,7 +941,40 @@
     adresTimers[m[1]] = setTimeout(function () { zoekAdres(m[1]); }, 600);
   }
 
+  // ---------- Hoofdknoppen: groen als alles klopt, anders gedimd (wel klikbaar: dan verschijnen de meldingen) ----------
+  function klaarVoorIngevuld() {
+    var g = Object.assign({}, huidig);
+    if (huidig.heeft_bsn && !g.bsn) g.bsn = '111222333'; // opgeslagen BSN (gemaskeerd): telt als ingevuld
+    return valideerPartnerFormulier(g).ok;
+  }
+
+  function klaarVoorAkkoord() {
+    if (!klaarVoorIngevuld()) return false;
+    var fee = $('v-fee_percentage');
+    var start = $('v-startdatum');
+    var cf = $('v-customer_facing_email');
+    if (!fee || isNaN(leesPercentage(fee.value)) || !start || !start.value) return false;
+    if (cf && !normaliseerCfAdres(cf.value, inst.cf_domein)) return false;
+    var c = controleerBezorggebied(rijenUitScherm());
+    if (c.fouten.length) return false;
+    var reden = $('v-openingstijden_uitzondering');
+    var min = $('v-openingstijden_minimum');
+    var heeftUitzondering = reden && reden.value.trim() && !$('uitzondering').hidden;
+    if (heeftUitzondering && !normaliseerTijdvak(min.value)) return false;
+    return !dagenOnderMinimum(huidig.bezorgtijden, heeftUitzondering ? normaliseerTijdvak(min.value) : OPENINGS_MINIMUM).length;
+  }
+
+  function werkKnoppenBij() {
+    var ingevuld = document.querySelector('#detailInhoud [data-actie="ingevuld"]');
+    if (ingevuld && huidig) ingevuld.classList.toggle('klaar', klaarVoorIngevuld());
+    var akkoord = document.querySelector('#detailInhoud [data-actie="akkoord"]');
+    if (akkoord && huidig) akkoord.classList.toggle('klaar', klaarVoorAkkoord());
+  }
+
   var detail = $('detailInhoud');
+  ['input', 'change', 'click'].forEach(function (t) {
+    detail.addEventListener(t, function () { setTimeout(werkKnoppenBij, 0); });
+  });
   detail.addEventListener('input', function (e) {
     var el = e.target;
     if (el.hasAttribute('data-veld')) {
@@ -949,15 +994,19 @@
         return;
       }
       controleerDirect(veld, el.value);
+      huidig[veld] = el.value;
       planAdres(veld);
       if (veld === 'bsn' && el.value.replace(/\D/g, '').length < 9) return; // pas bewaren als het compleet is
       bewaar(veld, el.value);
     } else if (el.hasAttribute('data-pcregel')) {
       controleerPcRegels();
+      huidig.postcodes_gewenst = pcRegelsUitScherm().filter(Boolean).join('\n');
+      toonMarkering(huidig.markering, false); // oude melding van een gewiste/gewijzigde regel meteen weg
       bewaar('postcodes_gewenst', pcRegelsUitScherm());
     } else if (el.closest('[data-tijden]')) {
       werkTijdVoorbeeldenBij(el.closest('[data-tijden]'));
       var vak = el.closest('[data-tijden]').getAttribute('data-tijden');
+      huidig[vak] = tijdenUitScherm(vak);
       var st = document.querySelector('#detailInhoud [data-status="' + vak + '"]');
       if (st && st.classList.contains('fout') && el.value.trim() && normaliseerTijdvak(el.value)) zetStatus(vak, '');
     } else if (el.hasAttribute('data-rij-nr')) {
