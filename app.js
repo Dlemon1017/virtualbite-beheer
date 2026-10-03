@@ -370,7 +370,8 @@
   }
 
   function heeftPostcodes(p) {
-    return leesRijen(p.bezorggebied).some(function (r) { return String(r.postcodes || '').trim(); });
+    return !!String(p.postcodes_gewenst || '').trim() ||
+      leesRijen(p.bezorggebied).some(function (r) { return String(r.postcodes || '').trim(); });
   }
 
   // ---------- Velden tekenen ----------
@@ -398,7 +399,7 @@
         var v = t[dag] || [];
         return '<span class="dag">' + DAGNAMEN[dag] + '</span>' + [0, 1].map(function (i) {
           return '<input data-dag="' + dag + '" data-i="' + i + '" value="' + esc(v[i] || '') + '" placeholder="' +
-            (dag !== 'ma' ? '' : i ? '16:30-21:30' : '11:30-14:00') + '" inputmode="numeric" autocomplete="off" aria-label="' +
+            (dag !== 'ma' ? '' : i ? 'Bijv. 16:30-21:30' : 'Bijv. 11:30-14:00') + '" inputmode="numeric" autocomplete="off" aria-label="' +
             esc(d.label) + ' ' + DAG_NAAM[dag] + ', tijdvak ' + (i + 1) + '"' + dis + '>';
         }).join('');
       }).join('') + '</div>';
@@ -409,7 +410,11 @@
         (uit ? '' : '<button type="button" class="klein-knop" data-actie="wijzig-bsn">Wijzigen</button>') + '</div>' +
         '<input id="' + id + '" data-veld="bsn" inputmode="numeric" autocomplete="off"' + vb + (p.heeft_bsn ? ' hidden' : '') + dis + '>';
     }
-    if (d.soort === 'bezorgrijen') return rijenHtml(p, uit, false);
+    if (d.soort === 'postcodes') {
+      return '<div class="klein">' + esc(standaardBedragenTekst(inst, inst.grens_km || 6)) + '</div>' +
+        '<textarea id="' + id + '" data-veld="' + esc(d.veld) + '" rows="2"' + vb + dis + '>' + esc(w) + '</textarea>' +
+        '<div id="pc-meldingen" class="rij-melding" hidden></div>';
+    }
     var type = d.soort === 'email' ? ' type="email" inputmode="email" autocapitalize="off"' :
       d.soort === 'telefoon' ? ' type="tel" inputmode="tel"' :
       ['kvk', 'cijfers', 'huisnummer'].indexOf(d.soort) !== -1 ? ' inputmode="numeric"' : '';
@@ -418,7 +423,7 @@
 
   function labelHtml(d) {
     if (d.soort === 'vinkje') return '';
-    var alsLabel = ['keuze', 'tijden', 'bezorgrijen'].indexOf(d.soort) === -1 && d.soort !== 'bsn';
+    var alsLabel = ['keuze', 'tijden'].indexOf(d.soort) === -1 && d.soort !== 'bsn';
     return alsLabel ? '<label for="v-' + esc(d.veld) + '">' + esc(d.label) + infoKnop(d.veld, d.label) + '</label>' :
       '<div class="label">' + esc(d.label) + infoKnop(d.veld, d.label) + '</div>';
   }
@@ -473,30 +478,28 @@
   }
 
   function bedragTekst(x) {
-    return typeof x === 'number' && isFinite(x) ? formatGetal(x, true) : String(x == null ? '' : x);
+    return typeof x === 'number' && isFinite(x) ? formatGetal(x, true) : String(x == null || x === 'NaN' ? '' : x);
   }
 
-  /** beheer = true: bedragen aanpasbaar en afstanden per postcode zichtbaar (controlescherm). */
-  function rijenHtml(p, uit, beheer) {
+  /** De 5 rijen van het TB-formulier (alleen in het controlescherm): postcodes, afstand en bedragen per rij. */
+  function rijenHtml(p, uit) {
     var dis = uit ? ' disabled' : '';
-    var std = 'Standaard: minimum € ' + formatGetal(inst.standaard_moa, true) + ', bezorgkosten € ' +
-      formatGetal(inst.standaard_bezorgkosten, true) + ', gratis bezorging vanaf € ' + formatGetal(inst.standaard_gratis_vanaf, true) + '.';
-    return '<div class="klein">' + esc(std) + '</div><div id="rijen">' + leesRijen(p.bezorggebied).map(function (r, i) {
-      var bedrag = function (k, label) {
-        return beheer ? '<div><label for="r' + i + '-' + k + '">' + label + '</label><input id="r' + i + '-' + k + '" data-rij-nr="' + i +
-          '" data-k="' + k + '" inputmode="decimal" value="' + esc(bedragTekst(r[k])) + '"' + dis + '></div>' :
-          '<div class="bedrag-vast"><span>' + label + '</span><strong>' + esc(bedragTekst(r[k])) + '</strong>' +
-          '<input type="hidden" data-rij-nr="' + i + '" data-k="' + k + '" value="' + esc(bedragTekst(r[k])) + '"></div>';
-      };
-      return '<div class="groep" data-bezorgrij="' + i + '"><div class="groep-kop"><span>Rij ' + (i + 1) + '</span></div>' +
-        '<label for="r' + i + '-postcodes" class="sr">Postcodes rij ' + (i + 1) + '</label>' +
-        '<textarea id="r' + i + '-postcodes" data-rij-nr="' + i + '" data-k="postcodes" rows="1" placeholder="' +
-        (i === 0 ? 'Bijv. 8231-8245, 8211' : '') + '"' + dis + '>' + esc(r.postcodes) + '</textarea>' +
-        '<div class="bedragen">' + bedrag('moa', 'Minimum (€)') + bedrag('bezorgkosten', 'Bezorgkosten (€)') +
-        bedrag('gratisVanaf', 'Gratis vanaf (€)') + '</div>' +
-        '<div class="rij-melding" data-rij-melding="' + i + '" hidden></div></div>';
-    }).join('') + '</div>' + (beheer ? '<div class="klein">Rijafstand tot het midden van het postcodegebied; de randen ' +
-      'kunnen verder liggen.</div>' : '');
+    return '<div class="klein">Gewenst door de partner: ' + esc(p.postcodes_gewenst || '–') + '</div><div id="rijen">' +
+      leesRijen(p.bezorggebied).map(function (r, i) {
+        var bedrag = function (k, label) {
+          return '<div><label for="r' + i + '-' + k + '">' + label + '</label><input id="r' + i + '-' + k + '" data-rij-nr="' + i +
+            '" data-k="' + k + '" inputmode="decimal" value="' + esc(bedragTekst(r[k])) + '"' + dis + '></div>';
+        };
+        return '<div class="groep" data-bezorgrij="' + i + '"><div class="groep-kop"><span>Rij ' + (i + 1) + '</span></div>' +
+          '<label for="r' + i + '-postcodes" class="sr">Postcodes rij ' + (i + 1) + '</label>' +
+          '<textarea id="r' + i + '-postcodes" data-rij-nr="' + i + '" data-k="postcodes" rows="1" placeholder="' +
+          (i === 0 ? 'Bijv. 8231-8245, 8211' : '') + '"' + dis + '>' + esc(r.postcodes) + '</textarea>' +
+          '<div class="rij-melding" data-rij-melding="' + i + '" hidden></div>' +
+          '<div class="bedragen">' + bedrag('moa', 'Minimum (€)') + bedrag('bezorgkosten', 'Bezorgkosten (€)') +
+          bedrag('gratisVanaf', 'Gratis vanaf (€)') + '</div></div>';
+      }).join('') + '</div><div class="klein">Rijafstand tot het midden van het postcodegebied; de randen kunnen verder ' +
+      'liggen. Postcodes boven ' + esc(String(inst.grens_km || 6).replace('.', ',')) + ' km staan vooraf in rij 2: vul daar de ' +
+      'bedragen in. Verplaats postcodes gerust tussen de rijen.</div>';
   }
 
   function rijenUitScherm() {
@@ -512,6 +515,11 @@
   /** Markering per rij: voor de partner alleen de grenstekst; in het controlescherm ook km per postcode. */
   function toonMarkering(m, beheer) {
     if (!m) return;
+    var pcEl = $('pc-meldingen');
+    if (pcEl) {
+      pcEl.innerHTML = (m.boven || []).map(function (pc) { return '<div class="grens-tekst">' + esc(grensTekst(m.grens_km, pc)) + '</div>'; }).join('');
+      pcEl.hidden = !(m.boven || []).length;
+    }
     (m.rijen || []).forEach(function (r, i) {
       var el = document.querySelector('[data-rij-melding="' + i + '"]');
       var blok = document.querySelector('[data-bezorgrij="' + i + '"]');
@@ -524,7 +532,6 @@
           return '<span class="' + (x.km !== null && x.km > m.grens_km ? 'ver' : '') + '">' + x.pc + ': ' + esc(km) + '</span>';
         }).join(' · ') + '</div>';
       }
-      if (r.boven) h += '<div class="grens-tekst">' + esc(grensTekst(m.grens_km)) + '</div>';
       el.innerHTML = h;
       el.hidden = !h;
     });
@@ -636,7 +643,7 @@
         '<div class="veld-status" data-status="' + v + '"></div></div>';
     };
     return veld('fee_percentage', 'Fee-percentage', '<input id="v-fee_percentage" data-veld="fee_percentage" inputmode="decimal" value="' +
-        esc(String(p.fee_percentage == null ? '' : p.fee_percentage).replace('.', ',')) + '" placeholder="9"' + dis + '>',
+        esc(String(p.fee_percentage == null ? '' : p.fee_percentage).replace('.', ',')) + '" placeholder="Bijv. 9"' + dis + '>',
         '<div class="voorbeeld" id="voorbeeld"></div>') +
       veld('startdatum', 'Startdatum', '<input id="v-startdatum" data-veld="startdatum" type="date" value="' + esc(p.startdatum) + '"' + dis + '>') +
       veld('customer_facing_email', 'Customer-facing e-mailadres', '<input id="v-customer_facing_email" data-veld="customer_facing_email" ' +
@@ -646,12 +653,12 @@
         ' op vrijdag, zaterdag, zondag en minimaal 2 andere dagen.</div>' +
         '<div id="uitzondering"' + (heeftUitzondering ? '' : ' hidden') + '>' +
         veld('openingstijden_uitzondering', 'Reden uitzondering', '<input id="v-openingstijden_uitzondering" ' +
-          'data-veld="openingstijden_uitzondering" value="' + esc(p.openingstijden_uitzondering) + '" placeholder="Bijv. zaak sluit om 20:00"' + dis + '>') +
+          'data-veld="openingstijden_uitzondering" value="' + esc(p.openingstijden_uitzondering) + '" placeholder="Bijv. de zaak sluit om 20:00"' + dis + '>') +
         veld('openingstijden_minimum', 'Afwijkende minimale tijd', '<input id="v-openingstijden_minimum" data-veld="openingstijden_minimum" ' +
-          'value="' + esc(p.openingstijden_minimum) + '" placeholder="16:30-20:00" inputmode="numeric"' + dis + '>') + '</div>' +
+          'value="' + esc(p.openingstijden_minimum) + '" placeholder="Bijv. 16:30-20:00" inputmode="numeric"' + dis + '>') + '</div>' +
         (uit ? '' : '<button type="button" class="klein-knop mt" data-actie="uitzondering">' +
           (heeftUitzondering ? 'Uitzondering verwijderen' : 'Uitzondering openingstijden') + '</button>') + '</div>' +
-      '<div class="veld" data-rij="bezorggebied"><div class="label">Bezorggebied en bedragen per rij</div>' + rijenHtml(p, uit, true) +
+      '<div class="veld" data-rij="bezorggebied"><div class="label">Bezorggebied en bedragen per rij</div>' + rijenHtml(p, uit) +
         '<div class="klein" id="afstandInfo" hidden></div><div class="klein" id="afstandBezig" hidden>Afstanden berekenen…</div>' +
         (uit ? '' : '<button type="button" class="klein-knop mt" data-actie="afstanden">Afstanden opnieuw berekenen</button>') +
         '<div class="veld-status" data-status="bezorggebied"></div></div>';
@@ -776,7 +783,7 @@
             var el = document.querySelector('[data-veld="' + veld + '"]');
             if (el && document.activeElement !== el) el.value = r.waarde;
           }
-          if (veld === 'bezorggebied' || veld === 'locatie_zelfde' || ADRES_VELDEN.test(veld)) planAfstanden();
+          if (veld === 'bezorggebied' || veld === 'postcodes_gewenst' || veld === 'locatie_zelfde' || ADRES_VELDEN.test(veld)) planAfstanden();
         }).catch(function (e) { zetStatus(veld, e.message, 'fout'); });
       });
     };

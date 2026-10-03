@@ -4,8 +4,9 @@
  *
  * Bezorggebied (kolom `bezorggebied`, JSON): 5 rijen zoals het TB-formulier, elk met eigen bedragen, bijv.
  *   [{postcodes: '1091-1095, 1097', moa: 12.5, bezorgkosten: 2.75, gratisVanaf: 35}, {postcodes: '', …}, …]
- * De partner vult alleen postcodes in (bedragen vast: de standaard); Dimitri kan in de controlestap de bedragen per
- * rij aanpassen. Lege rijen tellen niet mee.
+ * De partner vult één veld "Postcodes" in (`postcodes_gewenst`). Bij "Ingevuld" verdeelt de tool die over de rijen
+ * (verdeelNaarRijen): tot de grens in rij 1 met de standaardbedragen, daarboven in rij 2 met lege bedragen. Dimitri
+ * kan in de controlestap postcodes verplaatsen en alle bedragen aanpassen. Lege rijen tellen niet mee.
  */
 
 var TB_POSTCODEREGELS = 5;
@@ -86,9 +87,10 @@ function controleerBezorggebied(groepen) {
     if (!String(g.postcodes || '').trim()) return;
     var r = leesPostcodes(g.postcodes);
     if (r.fouten.length) fouten.push(nr + ': onbekende postcode(s) ' + r.fouten.join(', ') + '.');
-    ['moa', 'bezorgkosten', 'gratisVanaf'].forEach(function (k) {
-      if (!(leesBedrag(g[k]) >= 0)) fouten.push(nr + ': ongeldig bedrag bij ' + k + '.');
-    });
+    var bedragen = ['moa', 'bezorgkosten', 'gratisVanaf'].map(function (k) { return leesBedrag(g[k]); });
+    if (bedragen.some(function (b) { return !(b >= 0); })) {
+      fouten.push(nr + ': vul minimum, bezorgkosten en gratis vanaf in (geldige bedragen).');
+    }
     r.postcodes.forEach(function (pc) {
       if (waar[pc] !== undefined && waar[pc] !== i) fouten.push('Postcode ' + pc + ' staat in rij ' + (waar[pc] + 1) + ' én ' + (i + 1) + '.');
       waar[pc] = i;
@@ -170,9 +172,37 @@ function markeerRijen(rijen, afstanden, grensKm) {
   });
 }
 
-/** Tekst voor de partner bij een gemarkeerde rij (zonder te zeggen hoe de afstand is berekend). */
-function grensTekst(grensKm) {
-  return 'Deze postcode ligt meer dan ' + String(grensKm).replace('.', ',') + ' km rijden van je zaak. Voor zulke ' +
-    'afstanden spreken we aangepaste bedragen af, zoals een hoger minimum en hogere bezorgkosten, zodat elke rit de ' +
-    'moeite waard is. Geen zorgen: we stemmen samen bedragen af die voor jou goed uitpakken.';
+/** Postcodes (getallen) waarvan de bekende afstand boven de grens ligt. */
+function postcodesBovenGrens(postcodes, afstanden, grensKm) {
+  return postcodes.filter(function (pc) {
+    var a = (afstanden || {})[pc];
+    return a && typeof a.km === 'number' && a.km > grensKm;
+  });
+}
+
+/**
+ * Vooraf verdelen bij "Ingevuld": postcodes tot en met de grens (en onbekende afstanden) in rij 1 met de
+ * standaardbedragen; postcodes boven de grens in rij 2 met lege bedragen (Dimitri vult ze in vóór "Akkoord").
+ */
+function verdeelNaarRijen(postcodes, afstanden, grensKm, inst) {
+  var ver = postcodesBovenGrens(postcodes, afstanden, grensKm);
+  var dichtbij = postcodes.filter(function (pc) { return ver.indexOf(pc) === -1; });
+  var rijen = standaardBezorggebied('', inst);
+  rijen[0].postcodes = postcodesTekst(dichtbij);
+  if (ver.length) rijen[1] = { postcodes: postcodesTekst(ver), moa: null, bezorgkosten: null, gratisVanaf: null };
+  return rijen;
+}
+
+/** Tekst boven het postcodeveld van de partner. */
+function standaardBedragenTekst(inst, grensKm) {
+  return 'Standaard (tot ' + String(grensKm).replace('.', ',') + ' km rijden): minimum ' +
+    formatBedrag(leesBedrag(inst.standaard_moa), true) + ', bezorgkosten ' + formatBedrag(leesBedrag(inst.standaard_bezorgkosten), true) +
+    ', gratis bezorging vanaf ' + formatBedrag(leesBedrag(inst.standaard_gratis_vanaf), true) + '.';
+}
+
+/** Melding voor de partner per postcode boven de grens (zonder te zeggen hoe de afstand is berekend). */
+function grensTekst(grensKm, postcode) {
+  return (postcode ? postcode : 'Deze postcode') + ' ligt meer dan ' + String(grensKm).replace('.', ',') + ' km rijden ' +
+    'van je zaak. Voor zulke afstanden spreken we aangepaste bedragen af, zoals een hoger minimum en hogere ' +
+    'bezorgkosten, zodat elke rit de moeite waard is. Geen zorgen: we stemmen samen bedragen af die voor jou goed uitpakken.';
 }

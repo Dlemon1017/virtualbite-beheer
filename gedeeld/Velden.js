@@ -39,7 +39,7 @@ var UITLEG = {
   tijden: 'Per dag kun je twee tijdvakken invullen, bijvoorbeeld een middagblok (11:30-14:00) en een avondblok ' +
     '(16:30-21:30). Laat een dag leeg als je dan gesloten bent. Volgens de overeenkomst ben je minimaal vijf dagen per ' +
     'week in ieder geval van 16:30 tot 21:00 open.',
-  bezorggebied: 'De postcodes (4 cijfers) waar je wilt bezorgen. Reeksen mogen, bijvoorbeeld "1091-1099". ' +
+  postcodes_gewenst: 'De postcodes (4 cijfers) waar je wilt bezorgen. Reeksen mogen, bijvoorbeeld "1091-1099". ' +
     'Virtualbite beoordeelt je wens en bevestigt het definitieve gebied; dat wordt je exclusieve gebied in de ' +
     'overeenkomst.'
 };
@@ -62,54 +62,54 @@ function locatieAnders_(g) { return g.locatie_zelfde === 'nee'; }
 /**
  * Formuliervelden per stap, in de volgorde van het TB-formulier.
  * soort: tekst | cijfers | email | telefoon | kvk | btw | bsn | postcode | huisnummer | keuze | vinkje | tijden |
- *        bezorgrijen.
+ *        postcodes.
  * verplicht: true/false of een functie (g) => boolean. toon: functie (g) => boolean (verborgen = niet bewaren,
  * behalve het locatieadres: dat wordt dan een kopie van het vestigingsadres).
  * kop: tussenkop vóór dit veld. rij: velden met dezelfde rij-naam staan naast elkaar. voorbeeld: grijze tekst.
  */
 var FORMULIER_STAPPEN = [
   { titel: 'Bedrijfsgegevens', velden: [
-    { veld: 'tb_restaurant_id', label: 'Thuisbezorgd restaurant-ID (als je dat al hebt)', soort: 'cijfers', verplicht: false, voorbeeld: '1543994' },
+    { veld: 'tb_restaurant_id', label: 'Thuisbezorgd restaurant-ID (als je dat al hebt)', soort: 'cijfers', verplicht: false, voorbeeld: 'Bijv. 1543994' },
     { veld: 'rechtsvorm', label: 'Rechtsvorm', soort: 'keuze', keuzes: 'rechtsvorm', verplicht: true },
-    { veld: 'bedrijfsnaam', label: 'Officiële bedrijfsnaam', soort: 'tekst', verplicht: true, voorbeeld: 'Pizzeria Roma B.V.' },
-    { veld: 'eigenaar_naam', label: 'Eigenaar / bestuurder', soort: 'tekst', verplicht: true, voorbeeld: 'Jan Jansen' },
-    { veld: 'telefoon_zaak', label: 'Telefoonnummer zaak', soort: 'telefoon', verplicht: true, voorbeeld: '0201234567' },
-    { veld: 'contactpersoon', label: 'Contactpersoon', soort: 'tekst', verplicht: true, voorbeeld: 'Jan Jansen' },
-    { veld: 'contactpersoon_mobiel', label: 'Mobiel contactpersoon', soort: 'telefoon', verplicht: true, voorbeeld: '0612345678' },
-    { veld: 'vestiging_postcode', label: 'Postcode', soort: 'postcode', verplicht: true, voorbeeld: '1234 AB',
+    { veld: 'bedrijfsnaam', label: 'Officiële bedrijfsnaam', soort: 'tekst', verplicht: true, voorbeeld: 'Bijv. Pizzeria Roma B.V.' },
+    { veld: 'eigenaar_naam', label: 'Eigenaar / bestuurder', soort: 'tekst', verplicht: true, voorbeeld: 'Bijv. Jan Jansen' },
+    { veld: 'telefoon_zaak', label: 'Telefoonnummer zaak', soort: 'telefoon', verplicht: true, voorbeeld: 'Bijv. 0201234567' },
+    { veld: 'contactpersoon', label: 'Contactpersoon', soort: 'tekst', verplicht: true, voorbeeld: 'Bijv. Jan Jansen' },
+    { veld: 'contactpersoon_mobiel', label: 'Mobiel contactpersoon', soort: 'telefoon', verplicht: true, voorbeeld: 'Bijv. 0612345678' },
+    { veld: 'vestiging_postcode', label: 'Postcode', soort: 'postcode', verplicht: true, voorbeeld: 'Bijv. 1234 AB',
       kop: 'Vestigingsadres (zoals bij de KvK)', rij: 'vestiging-nr' },
-    { veld: 'vestiging_huisnummer', label: 'Huisnummer', soort: 'huisnummer', verplicht: true, voorbeeld: '12', rij: 'vestiging-nr' },
-    { veld: 'vestiging_toevoeging', label: 'Toevoeging', soort: 'tekst', verplicht: false, voorbeeld: 'a', rij: 'vestiging-nr' },
+    { veld: 'vestiging_huisnummer', label: 'Huisnummer', soort: 'huisnummer', verplicht: true, voorbeeld: 'Bijv. 12', rij: 'vestiging-nr' },
+    { veld: 'vestiging_toevoeging', label: 'Toevoeging', soort: 'tekst', verplicht: false, voorbeeld: 'Bijv. a', rij: 'vestiging-nr' },
     { veld: 'vestiging_straat', label: 'Straat', soort: 'tekst', verplicht: true, voorbeeld: 'Wordt automatisch ingevuld' },
     { veld: 'vestiging_plaats', label: 'Plaats', soort: 'tekst', verplicht: true, voorbeeld: 'Wordt automatisch ingevuld' },
-    { veld: 'email_facturen', label: 'E-mail voor facturen', soort: 'email', verplicht: true, voorbeeld: 'administratie@pizzeriaroma.nl' },
-    { veld: 'email_communicatie', label: 'E-mail voor communicatie', soort: 'email', verplicht: true, voorbeeld: 'info@pizzeriaroma.nl' },
-    { veld: 'kvk', label: 'KvK-nummer', soort: 'kvk', verplicht: true, voorbeeld: '12345678' },
-    { veld: 'btw_id', label: 'BTW-nummer', soort: 'btw', verplicht: true, voorbeeld: 'NL123456789B01' },
-    { veld: 'bsn', label: 'BSN', soort: 'bsn', voorbeeld: '9 cijfers',
+    { veld: 'email_facturen', label: 'E-mail voor facturen', soort: 'email', verplicht: true, voorbeeld: 'Bijv. administratie@pizzeriaroma.nl' },
+    { veld: 'email_communicatie', label: 'E-mail voor communicatie', soort: 'email', verplicht: true, voorbeeld: 'Bijv. info@pizzeriaroma.nl' },
+    { veld: 'kvk', label: 'KvK-nummer', soort: 'kvk', verplicht: true, voorbeeld: 'Bijv. 12345678' },
+    { veld: 'btw_id', label: 'BTW-nummer', soort: 'btw', verplicht: true, voorbeeld: 'Bijv. NL123456789B01' },
+    { veld: 'bsn', label: 'BSN', soort: 'bsn', voorbeeld: 'Bijv. 123456789',
       verplicht: function (g) { return g.rechtsvorm === 'eenmanszaak'; },
       toon: function (g) { return g.rechtsvorm === 'eenmanszaak'; } },
     { veld: 'eu_vestiging', label: 'Vestiging in een ander EU-land?', soort: 'keuze', keuzes: 'ja_nee', verplicht: true },
-    { veld: 'eu_land', label: 'Welk EU-land?', soort: 'tekst', voorbeeld: 'België',
+    { veld: 'eu_land', label: 'Welk EU-land?', soort: 'tekst', voorbeeld: 'Bijv. België',
       verplicht: function (g) { return g.eu_vestiging === 'ja'; }, toon: function (g) { return g.eu_vestiging === 'ja'; } },
     { veld: 'pep', label: 'Ben je een politiek prominent persoon (PEP)?', soort: 'keuze', keuzes: 'ja_nee', verplicht: true }
   ] },
   { titel: 'Locatie', velden: [
-    { veld: 'zaak_naam', label: 'Naam van de zaak', soort: 'tekst', verplicht: true, voorbeeld: 'Pizzeria Roma' },
+    { veld: 'zaak_naam', label: 'Naam van de zaak', soort: 'tekst', verplicht: true, voorbeeld: 'Bijv. Pizzeria Roma' },
     { veld: 'locatie_zelfde', label: 'Locatieadres is hetzelfde als vestigingsadres', soort: 'vinkje', verplicht: false },
-    { veld: 'locatie_postcode', label: 'Postcode', soort: 'postcode', voorbeeld: '1234 AB', kop: 'Locatieadres (waar de keuken is)',
+    { veld: 'locatie_postcode', label: 'Postcode', soort: 'postcode', voorbeeld: 'Bijv. 1234 AB', kop: 'Locatieadres (waar de keuken is)',
       rij: 'locatie-nr', verplicht: locatieAnders_, toon: locatieAnders_ },
-    { veld: 'locatie_huisnummer', label: 'Huisnummer', soort: 'huisnummer', voorbeeld: '12', rij: 'locatie-nr',
+    { veld: 'locatie_huisnummer', label: 'Huisnummer', soort: 'huisnummer', voorbeeld: 'Bijv. 12', rij: 'locatie-nr',
       verplicht: locatieAnders_, toon: locatieAnders_ },
-    { veld: 'locatie_toevoeging', label: 'Toevoeging', soort: 'tekst', voorbeeld: 'a', rij: 'locatie-nr', verplicht: false,
+    { veld: 'locatie_toevoeging', label: 'Toevoeging', soort: 'tekst', voorbeeld: 'Bijv. a', rij: 'locatie-nr', verplicht: false,
       toon: locatieAnders_ },
     { veld: 'locatie_straat', label: 'Straat', soort: 'tekst', voorbeeld: 'Wordt automatisch ingevuld',
       verplicht: locatieAnders_, toon: locatieAnders_ },
     { veld: 'locatie_plaats', label: 'Plaats', soort: 'tekst', voorbeeld: 'Wordt automatisch ingevuld',
       verplicht: locatieAnders_, toon: locatieAnders_ },
-    { veld: 'locatie_telefoon', label: 'Telefoonnummer locatie', soort: 'telefoon', verplicht: true, voorbeeld: '0201234567' },
-    { veld: 'locatie_contactpersoon', label: 'Contactpersoon locatie', soort: 'tekst', verplicht: true, voorbeeld: 'Jan Jansen' },
-    { veld: 'locatie_mobiel', label: 'Mobiel contactpersoon locatie', soort: 'telefoon', verplicht: true, voorbeeld: '0612345678' }
+    { veld: 'locatie_telefoon', label: 'Telefoonnummer locatie', soort: 'telefoon', verplicht: true, voorbeeld: 'Bijv. 0201234567' },
+    { veld: 'locatie_contactpersoon', label: 'Contactpersoon locatie', soort: 'tekst', verplicht: true, voorbeeld: 'Bijv. Jan Jansen' },
+    { veld: 'locatie_mobiel', label: 'Mobiel contactpersoon locatie', soort: 'telefoon', verplicht: true, voorbeeld: 'Bijv. 0612345678' }
   ] },
   { titel: 'Overzicht en services', velden: [
     { veld: 'koppeling', label: 'Hoe ontvang je de bestellingen? (koppeling)', soort: 'keuze', keuzes: 'koppeling', verplicht: true },
@@ -118,7 +118,7 @@ var FORMULIER_STAPPEN = [
     { veld: 'afhalen', label: 'Kunnen klanten afhalen?', soort: 'keuze', keuzes: 'ja_nee', verplicht: true }
   ] },
   { titel: 'Bezorggebied', velden: [
-    { veld: 'bezorggebied', label: 'Postcodes waar je wilt bezorgen', soort: 'bezorgrijen', verplicht: true }
+    { veld: 'postcodes_gewenst', label: 'Postcodes', soort: 'postcodes', verplicht: true, voorbeeld: 'Bijv. 8231-8245, 8211' }
   ] },
   { titel: 'Tijden', velden: [
     { veld: 'bezorgtijden', label: 'Bezorgtijden', soort: 'tijden', verplicht: true },
@@ -126,8 +126,10 @@ var FORMULIER_STAPPEN = [
       verplicht: function (g) { return g.afhalen === 'ja'; }, toon: function (g) { return g.afhalen === 'ja'; } }
   ] },
   { titel: 'Overig', velden: [
-    { veld: 'externe_merken', label: 'Andere virtuele merken die nu al vanuit de zaak draaien', soort: 'tekst', verplicht: true,
-      voorbeeld: 'GEEN' },
+    { veld: 'externe_merken_ja', label: 'Draaien er al andere virtuele merken vanuit de zaak?', soort: 'keuze', keuzes: 'ja_nee',
+      verplicht: true },
+    { veld: 'externe_merken', label: 'Welke merken?', soort: 'tekst', voorbeeld: 'Bijv. Burger Brothers, Wok Express',
+      verplicht: function (g) { return g.externe_merken_ja === 'ja'; }, toon: function (g) { return g.externe_merken_ja === 'ja'; } },
     { veld: 'opmerkingen', label: 'Opmerkingen', soort: 'tekst', verplicht: false }
   ] }
 ];
@@ -211,6 +213,12 @@ function controleerVeld(d, tekst) {
   if (d.soort === 'bsn') fout = n(normaliseerBsn, 'Dit BSN klopt niet. Controleer de 9 cijfers.');
   if (d.soort === 'keuze' && !KEUZES[d.keuzes].some(function (k) { return k[0] === tekst; })) fout = 'Maak een keuze.';
   if (d.soort === 'vinkje' && ['ja', 'nee'].indexOf(tekst) === -1) fout = 'Ongeldige keuze.';
+  if (d.soort === 'postcodes') {
+    var pc = leesPostcodes(tekst);
+    if (pc.fouten.length) fout = 'Deze postcodes begrijpen we niet: ' + pc.fouten.join(', ') + '. Gebruik 4 cijfers, bijv. 8231-8245, 8211.';
+    else if (!pc.postcodes.length) fout = 'Vul minimaal één postcode in.';
+    else w = postcodesTekst(pc.postcodes);
+  }
   return { waarde: fout ? tekst : w, fout: fout };
 }
 
@@ -244,17 +252,6 @@ function valideerPartnerFormulier(g) {
         var onder = dagenOnderMinimum(t.waarde);
         if (onder.length) waarschuwingen.bezorgtijden = minimumWaarschuwing(onder);
       }
-    } else if (d.soort === 'bezorgrijen') {
-      var rijen = leesTijden(ruw);
-      rijen = Array.isArray(rijen) ? rijen : [];
-      var c = controleerBezorggebied(rijen);
-      leeg = !c.postcodes.length && !c.fouten.length;
-      fout = leeg ? '' : c.fouten.join(' ');
-      waarde = JSON.stringify(rijen.map(function (r) {
-        var pc = leesPostcodes(r.postcodes);
-        return { postcodes: pc.fouten.length ? String(r.postcodes || '') : postcodesTekst(pc.postcodes), moa: leesBedrag(r.moa),
-          bezorgkosten: leesBedrag(r.bezorgkosten), gratisVanaf: leesBedrag(r.gratisVanaf) };
-      }));
     } else if (!leeg) {
       var v = controleerVeld(d, tekst);
       waarde = v.waarde;
@@ -270,4 +267,9 @@ function valideerPartnerFormulier(g) {
     ['postcode', 'huisnummer', 'toevoeging', 'straat', 'plaats'].forEach(function (k) { w['locatie_' + k] = w['vestiging_' + k]; });
   }
   return { ok: !Object.keys(fouten).length, waarde: w, fouten: fouten, waarschuwingen: waarschuwingen };
+}
+
+/** Andere virtuele merken voor de overeenkomst: de ingevulde merken, of "GEEN". */
+function externeMerkenTekst(p) {
+  return p.externe_merken_ja === 'ja' && String(p.externe_merken || '').trim() ? String(p.externe_merken).trim() : 'GEEN';
 }
