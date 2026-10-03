@@ -62,7 +62,7 @@ function locatieAnders_(g) { return g.locatie_zelfde === 'nee'; }
 /**
  * Formuliervelden per stap, in de volgorde van het TB-formulier.
  * soort: tekst | cijfers | email | telefoon | kvk | btw | bsn | postcode | huisnummer | keuze | vinkje | tijden |
- *        postcodes.
+ *        postcoderegels (max. 5 regels, elk één postcode of reeks; opgeslagen als tekst met een regel per postcode).
  * verplicht: true/false of een functie (g) => boolean. toon: functie (g) => boolean (verborgen = niet bewaren,
  * behalve het locatieadres: dat wordt dan een kopie van het vestigingsadres).
  * kop: tussenkop vóór dit veld. rij: velden met dezelfde rij-naam staan naast elkaar. voorbeeld: grijze tekst.
@@ -118,7 +118,7 @@ var FORMULIER_STAPPEN = [
     { veld: 'afhalen', label: 'Kunnen klanten afhalen?', soort: 'keuze', keuzes: 'ja_nee', verplicht: true }
   ] },
   { titel: 'Bezorggebied', velden: [
-    { veld: 'postcodes_gewenst', label: 'Postcodes', soort: 'postcodes', verplicht: true, voorbeeld: 'Bijv. 8231-8245, 8211' }
+    { veld: 'postcodes_gewenst', label: 'Postcodes', soort: 'postcoderegels', verplicht: true, voorbeeld: 'Bijv. 8231-8245' }
   ] },
   { titel: 'Tijden', velden: [
     { veld: 'bezorgtijden', label: 'Bezorgtijden', soort: 'tijden', verplicht: true },
@@ -213,11 +213,10 @@ function controleerVeld(d, tekst) {
   if (d.soort === 'bsn') fout = n(normaliseerBsn, 'Dit BSN klopt niet. Controleer de 9 cijfers.');
   if (d.soort === 'keuze' && !KEUZES[d.keuzes].some(function (k) { return k[0] === tekst; })) fout = 'Maak een keuze.';
   if (d.soort === 'vinkje' && ['ja', 'nee'].indexOf(tekst) === -1) fout = 'Ongeldige keuze.';
-  if (d.soort === 'postcodes') {
-    var pc = leesPostcodes(tekst);
-    if (pc.fouten.length) fout = 'Deze postcodes begrijpen we niet: ' + pc.fouten.join(', ') + '. Gebruik 4 cijfers, bijv. 8231-8245, 8211.';
-    else if (!pc.postcodes.length) fout = 'Vul minimaal één postcode in.';
-    else w = postcodesTekst(pc.postcodes);
+  if (d.soort === 'postcoderegels') {
+    var r = controleerPostcodeRegels(tekst);
+    fout = r.fout;
+    w = r.waarde;
   }
   return { waarde: fout ? tekst : w, fout: fout };
 }
@@ -232,7 +231,8 @@ function valideerPartnerFormulier(g) {
   var w = {};
   alleFormulierVelden().forEach(function (d) {
     var ruw = g[d.veld];
-    var tekst = typeof ruw === 'string' ? ruw.replace(/\s+/g, ' ').trim() : ruw;
+    var tekst = typeof ruw === 'string' && d.soort !== 'postcoderegels' ? ruw.replace(/\s+/g, ' ').trim() :
+      typeof ruw === 'string' ? ruw.trim() : ruw;
     var nodig = typeof d.verplicht === 'function' ? d.verplicht(g) : d.verplicht;
     if (!veldZichtbaar(d, g)) { // bijv. BSN zonder eenmanszaak: niet bewaren
       w[d.veld] = '';
@@ -272,4 +272,39 @@ function valideerPartnerFormulier(g) {
 /** Andere virtuele merken voor de overeenkomst: de ingevulde merken, of "GEEN". */
 function externeMerkenTekst(p) {
   return p.externe_merken_ja === 'ja' && String(p.externe_merken || '').trim() ? String(p.externe_merken).trim() : 'GEEN';
+}
+
+var MAX_POSTCODEREGELS = 5;
+
+/** Regels uit de opgeslagen tekst (of een lijst); lege regels tellen niet. */
+function postcodeRegels(waarde) {
+  var lijst = Array.isArray(waarde) ? waarde : String(waarde == null ? '' : waarde).split(/\r?\n/);
+  return lijst.map(function (r) { return String(r == null ? '' : r).trim(); }).filter(Boolean);
+}
+
+/**
+ * Postcoderegels van de partner: max. 5, elk één postcode of reeks ("8231-8245"), geen dubbele postcodes.
+ * Geeft {waarde: opgeschoonde regels met \n, fout: '' | melding, regelFouten: {index: melding}}.
+ */
+function controleerPostcodeRegels(waarde) {
+  var regels = postcodeRegels(waarde);
+  var uit = [];
+  var regelFouten = {};
+  var waar = {};
+  regels.forEach(function (regel, i) {
+    var pc = leesPostcodes(regel);
+    var reeksen = naarReeksen(pc.postcodes);
+    if (pc.fouten.length) regelFouten[i] = 'Deze postcode begrijpen we niet: ' + pc.fouten.join(', ') + '. Gebruik 4 cijfers, bijv. 8231-8245.';
+    else if (reeksen.length !== 1) regelFouten[i] = 'Eén postcode of één reeks per regel, bijv. 8231-8245.';
+    pc.postcodes.forEach(function (p) {
+      if (waar[p] !== undefined && waar[p] !== i && !regelFouten[i]) {
+        regelFouten[i] = 'Postcode ' + p + ' staat ook in regel ' + (waar[p] + 1) + '.';
+      }
+      waar[p] = i;
+    });
+    uit.push(regelFouten[i] || reeksen.length !== 1 ? regel : reeksen[0]);
+  });
+  var fout = Object.keys(regelFouten).map(function (i) { return 'Regel ' + (Number(i) + 1) + ': ' + regelFouten[i]; }).join(' ');
+  if (regels.length > MAX_POSTCODEREGELS) fout = (fout ? fout + ' ' : '') + 'Maximaal ' + MAX_POSTCODEREGELS + ' regels.';
+  return { waarde: uit.join('\n'), fout: fout, regelFouten: regelFouten };
 }

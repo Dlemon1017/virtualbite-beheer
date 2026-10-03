@@ -81,16 +81,25 @@
   }
 
   var STORING = 'De server van Google reageert even niet. Probeer het zo opnieuw.';
+  var MAX_WACHT_MS = 20000; // daarna geldt het als storing (Google laat een verzoek soms lang hangen)
+
   function api(verzoek) {
+    var afbreken = typeof AbortController === 'function' ? new AbortController() : null;
+    var t = afbreken ? setTimeout(function () { afbreken.abort(); }, MAX_WACHT_MS) : null;
     return fetch(window.VB_CONFIG.api, {
-      method: 'POST', credentials: 'omit', redirect: 'follow',
+      method: 'POST', credentials: 'omit', redirect: 'follow', signal: afbreken ? afbreken.signal : undefined,
       headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(verzoek)
     }).then(function (r) {
       if (!r.ok) throw new Error(STORING);
       return r.text();
-    }, function () { throw new Error(STORING); }).then(function (t) {
-      try { return JSON.parse(t); } catch (e) { throw new Error(STORING); }
-    });
+    }, function () { throw new Error(STORING); }).then(function (tekst) {
+      clearTimeout(t);
+      var j;
+      try { j = JSON.parse(tekst); } catch (e) { throw new Error(STORING); }
+      // Google stuurt een POST soms als GET door (antwoord van doGet): dan is er niets gedaan, dus storing.
+      if (!j || j.status === 'get' || (verzoek.actie === 'beheer' && j.status === 'ok' && !('data' in j))) throw new Error(STORING);
+      return j;
+    }, function (e) { clearTimeout(t); throw e; });
   }
 
   /**
@@ -398,14 +407,16 @@
     }
     if (d.soort === 'tijden') {
       var t = leesTijden(w);
-      return '<div class="tijden" data-tijden="' + esc(d.veld) + '">' + DAGEN.map(function (dag) {
-        var v = t[dag] || [];
-        return '<span class="dag">' + DAGNAMEN[dag] + '</span>' + [0, 1].map(function (i) {
-          return '<input data-dag="' + dag + '" data-i="' + i + '" value="' + esc(v[i] || '') + '" placeholder="' +
-            (dag !== 'ma' ? '' : i ? 'Bijv. 16:30-21:30' : 'Bijv. 11:30-14:00') + '" inputmode="numeric" autocomplete="off" aria-label="' +
-            esc(d.label) + ' ' + DAG_NAAM[dag] + ', tijdvak ' + (i + 1) + '"' + dis + '>';
-        }).join('');
-      }).join('') + '</div>';
+      var leegRooster = !DAGEN.some(function (dag) { return (t[dag] || []).some(Boolean); });
+      return '<div class="klein">Laat leeg als je die dag dicht bent.</div><div class="tijden" data-tijden="' + esc(d.veld) + '">' +
+        DAGEN.map(function (dag) {
+          var v = t[dag] || [];
+          return '<span class="dag">' + DAGNAMEN[dag] + '</span>' + [0, 1].map(function (i) {
+            return '<input data-dag="' + dag + '" data-i="' + i + '" value="' + esc(v[i] || '') + '" placeholder="' +
+              (leegRooster ? tijdVoorbeeld(i) : '') + '" inputmode="numeric" autocomplete="off" aria-label="' +
+              esc(d.label) + ' ' + DAG_NAAM[dag] + ', tijdvak ' + (i + 1) + '"' + dis + '>';
+          }).join('');
+        }).join('') + '</div>';
     }
     if (d.soort === 'bsn') {
       return '<div class="bsn-rij" id="bsn-tonen"' + (p.heeft_bsn ? '' : ' hidden') + '><span class="waarde" id="bsn-waarde">' +
@@ -413,20 +424,60 @@
         (uit ? '' : '<button type="button" class="klein-knop" data-actie="wijzig-bsn">Wijzigen</button>') + '</div>' +
         '<input id="' + id + '" data-veld="bsn" inputmode="numeric" autocomplete="off"' + vb + (p.heeft_bsn ? ' hidden' : '') + dis + '>';
     }
-    if (d.soort === 'postcodes') {
-      return '<div class="klein">' + esc(standaardBedragenTekst(inst, inst.grens_km || 6)) + '</div>' +
-        '<textarea id="' + id + '" data-veld="' + esc(d.veld) + '" rows="2"' + vb + dis + '>' + esc(w) + '</textarea>' +
-        '<div id="pc-meldingen" class="rij-melding" hidden></div>';
-    }
+    if (d.soort === 'postcoderegels') return postcodeRegelsHtml(d, w, uit);
     var type = d.soort === 'email' ? ' type="email" inputmode="email" autocapitalize="off"' :
       d.soort === 'telefoon' ? ' type="tel" inputmode="tel"' :
       ['kvk', 'cijfers', 'huisnummer'].indexOf(d.soort) !== -1 ? ' inputmode="numeric"' : '';
     return '<input id="' + id + '" data-veld="' + esc(d.veld) + '" value="' + esc(w) + '"' + type + vb + ' autocomplete="off"' + dis + '>';
   }
 
+  function tijdVoorbeeld(i) { return i ? 'Bijv. 16:30-21:30' : 'Bijv. 11:30-14:00'; }
+
+  /** Voorbeelden in een rooster alleen zolang het hele rooster leeg is. */
+  function werkTijdVoorbeeldenBij(rooster) {
+    var vakken = rooster.querySelectorAll('input');
+    var leeg = !Array.prototype.some.call(vakken, function (x) { return x.value.trim(); });
+    vakken.forEach(function (x) { x.placeholder = leeg ? tijdVoorbeeld(Number(x.getAttribute('data-i'))) : ''; });
+  }
+
+  // ---------- Postcoderegels (partner): max. 5, elk één postcode of reeks ----------
+  function postcodeRegelsHtml(d, w, uit) {
+    var regels = postcodeRegels(w);
+    var n = Math.min(MAX_POSTCODEREGELS, Math.max(3, regels.length));
+    var h = '<div class="klein">' + esc(standaardBedragenTekst(inst, inst.grens_km || 6)) + '</div><div id="pc-regels">';
+    for (var i = 0; i < n; i++) h += postcodeRegelHtml(i, regels[i] || '', uit);
+    return h + '</div>' + (uit ? '' : '<button type="button" class="klein-knop mt" data-actie="pc-erbij"' +
+      (n >= MAX_POSTCODEREGELS ? ' hidden' : '') + '>+ Postcode toevoegen</button>');
+  }
+
+  function postcodeRegelHtml(i, waarde, uit) {
+    return '<div class="pc-regel"><label for="pc-' + i + '">Postcode ' + (i + 1) + '</label>' +
+      '<input id="pc-' + i + '" data-pcregel="' + i + '" value="' + esc(waarde) + '" inputmode="numeric" autocomplete="off"' +
+      (i === 0 ? ' placeholder="Bijv. 8231-8245"' : '') + (uit ? ' disabled' : '') + '>' +
+      '<div class="fout" data-pcregel-fout="' + i + '"></div><div class="rij-melding" data-pcregel-melding="' + i + '" hidden></div></div>';
+  }
+
+  function pcRegelsUitScherm() {
+    return Array.prototype.map.call(document.querySelectorAll('[data-pcregel]'), function (el) { return el.value.trim(); });
+  }
+
+  /** Melding per regel (formaat, één reeks, dubbel), zonder serveraanroep. */
+  function controleerPcRegels() {
+    var waarden = pcRegelsUitScherm();
+    var gevuld = [];
+    waarden.forEach(function (v, i) { if (v) gevuld.push(i); });
+    var r = controleerPostcodeRegels(gevuld.map(function (i) { return waarden[i]; }));
+    document.querySelectorAll('[data-pcregel-fout]').forEach(function (el) { el.textContent = ''; });
+    Object.keys(r.regelFouten).forEach(function (k) {
+      var el = document.querySelector('[data-pcregel-fout="' + gevuld[Number(k)] + '"]');
+      if (el) el.textContent = r.regelFouten[k];
+    });
+    return r;
+  }
+
   function labelHtml(d) {
     if (d.soort === 'vinkje') return '';
-    var alsLabel = ['keuze', 'tijden'].indexOf(d.soort) === -1 && d.soort !== 'bsn';
+    var alsLabel = ['keuze', 'tijden', 'postcoderegels'].indexOf(d.soort) === -1 && d.soort !== 'bsn';
     return alsLabel ? '<label for="v-' + esc(d.veld) + '">' + esc(d.label) + infoKnop(d.veld, d.label) + '</label>' :
       '<div class="label">' + esc(d.label) + infoKnop(d.veld, d.label) + '</div>';
   }
@@ -487,7 +538,7 @@
   /** De 5 rijen van het TB-formulier (alleen in het controlescherm): postcodes, afstand en bedragen per rij. */
   function rijenHtml(p, uit) {
     var dis = uit ? ' disabled' : '';
-    return '<div class="klein">Gewenst door de partner: ' + esc(p.postcodes_gewenst || '–') + '</div><div id="rijen">' +
+    return '<div class="klein">Gewenst door de partner: ' + esc(postcodeRegels(p.postcodes_gewenst).join(', ') || '–') + '</div><div id="rijen">' +
       leesRijen(p.bezorggebied).map(function (r, i) {
         var bedrag = function (k, label) {
           return '<div><label for="r' + i + '-' + k + '">' + label + '</label><input id="r' + i + '-' + k + '" data-rij-nr="' + i +
@@ -518,11 +569,13 @@
   /** Markering per rij: voor de partner alleen de grenstekst; in het controlescherm ook km per postcode. */
   function toonMarkering(m, beheer) {
     if (!m) return;
-    var pcEl = $('pc-meldingen');
-    if (pcEl) {
-      pcEl.innerHTML = (m.boven || []).map(function (pc) { return '<div class="grens-tekst">' + esc(grensTekst(m.grens_km, pc)) + '</div>'; }).join('');
-      pcEl.hidden = !(m.boven || []).length;
-    }
+    document.querySelectorAll('[data-pcregel]').forEach(function (inp) {
+      var i = inp.getAttribute('data-pcregel');
+      var el = document.querySelector('[data-pcregel-melding="' + i + '"]');
+      var hier = leesPostcodes(inp.value).postcodes.filter(function (pc) { return (m.boven || []).indexOf(pc) !== -1; });
+      el.innerHTML = hier.map(function (pc) { return '<div class="grens-tekst">' + esc(grensTekst(m.grens_km, pc)) + '</div>'; }).join('');
+      el.hidden = !hier.length;
+    });
     (m.rijen || []).forEach(function (r, i) {
       var el = document.querySelector('[data-rij-melding="' + i + '"]');
       var blok = document.querySelector('[data-bezorgrij="' + i + '"]');
@@ -787,7 +840,10 @@
             if (el && document.activeElement !== el) el.value = r.waarde;
           }
           if (veld === 'bezorggebied' || veld === 'postcodes_gewenst' || veld === 'locatie_zelfde' || ADRES_VELDEN.test(veld)) planAfstanden();
-        }).catch(function (e) { zetStatus(veld, e.message, 'fout'); });
+        }).catch(function (e) {
+          zetStatus(veld, e.message === STORING ? 'Opslaan lukte niet: de server van Google reageert even niet. Pas het veld ' +
+            'opnieuw aan of probeer het zo opnieuw.' : e.message, 'fout');
+        });
       });
     };
     if (direct) doe(); else { wachtend[veld] = doe; timers[veld] = setTimeout(doe, 900); }
@@ -889,7 +945,11 @@
       planAdres(veld);
       if (veld === 'bsn' && el.value.replace(/\D/g, '').length < 9) return; // pas bewaren als het compleet is
       bewaar(veld, el.value);
+    } else if (el.hasAttribute('data-pcregel')) {
+      controleerPcRegels();
+      bewaar('postcodes_gewenst', pcRegelsUitScherm());
     } else if (el.closest('[data-tijden]')) {
+      werkTijdVoorbeeldenBij(el.closest('[data-tijden]'));
       var vak = el.closest('[data-tijden]').getAttribute('data-tijden');
       var st = document.querySelector('#detailInhoud [data-status="' + vak + '"]');
       if (st && st.classList.contains('fout') && el.value.trim() && normaliseerTijdvak(el.value)) zetStatus(vak, '');
@@ -914,6 +974,9 @@
       if (veld === 'btw_id' && !wachtend.btw_id) return; // al opgeslagen (en gecontroleerd) tijdens het typen
       if (controleerDirect(veld, el.value, true)) bewaar(veld, el.value, true);
       else bewaar(veld, el.value, true); // half ingevuld toch bewaren; melding blijft staan
+    } else if (el.hasAttribute('data-pcregel')) {
+      controleerPcRegels();
+      bewaar('postcodes_gewenst', pcRegelsUitScherm(), true);
     } else if (el.closest('[data-tijden]')) {
       var vak = el.closest('[data-tijden]').getAttribute('data-tijden');
       bewaar(vak, tijdenUitScherm(vak), true);
@@ -949,6 +1012,15 @@
     }
     if (actie === 'wijzig-bsn') { $('bsn-tonen').hidden = true; $('v-bsn').hidden = false; $('v-bsn').focus(); return; }
     if (actie === 'afstanden') { planAfstanden(true); return; }
+    if (actie === 'pc-erbij') {
+      var aantal = document.querySelectorAll('[data-pcregel]').length;
+      if (aantal < MAX_POSTCODEREGELS) {
+        $('pc-regels').insertAdjacentHTML('beforeend', postcodeRegelHtml(aantal, '', false));
+        $('pc-' + aantal).focus();
+      }
+      knop.hidden = aantal + 1 >= MAX_POSTCODEREGELS;
+      return;
+    }
     if (actie === 'testgegevens') {
       var herstel = bezig(knop, 'Invullen…');
       reeks.then(function () { return roep('testgegevens', [huidig.id]); }).then(function (r) {
