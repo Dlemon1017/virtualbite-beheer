@@ -178,6 +178,7 @@
     return roep('overzicht').then(function (o) {
       inst = o.instellingen || inst;
       $('testbalk').hidden = !o.testmodus;
+      $('n-test').hidden = !o.testmodus;
       var n = o.partners.filter(function (p) { return p.status !== 'Geannuleerd'; }).length;
       $('telling').textContent = n === 1 ? '1 partner' : n + ' partners';
       $('lijst').innerHTML = o.partners.length ? o.partners.map(function (p) {
@@ -225,11 +226,30 @@
     if (!cfZelfGewijzigd) $('n-cf').value = cfVoorstel($('n-stad').value, inst.cf_domein);
   });
   $('n-cf').addEventListener('input', function () { cfZelfGewijzigd = $('n-cf').value.trim() !== ''; });
+  // Foutmelding weg zodra een veld wordt aangepast.
+  [['n-naam', 'naam'], ['n-email', 'email'], ['n-stad', 'stad'], ['n-cf', 'customer_facing_email']].forEach(function (x) {
+    $(x[0]).addEventListener('input', function () {
+      $('nieuw').querySelector('[data-fout="' + x[1] + '"]').textContent = '';
+      if (x[1] === 'stad') $('nieuw').querySelector('[data-fout="customer_facing_email"]').textContent = '';
+    });
+  });
+  $('n-test').addEventListener('click', function () {
+    var nr = String(Date.now()).slice(-4);
+    $('n-naam').value = 'Testpartner ' + nr;
+    $('n-email').value = 'hallo+test' + nr + '@virtualbite.nl';
+    $('n-stad').value = 'Teststad ' + nr;
+    cfZelfGewijzigd = false;
+    $('n-cf').value = cfVoorstel($('n-stad').value, inst.cf_domein);
+    nieuwRoute = 'samen';
+    zetKeuze($('n-route'), 'samen');
+    $('nieuw').querySelectorAll('[data-fout]').forEach(function (f) { f.textContent = ''; });
+  });
   $('n-route').addEventListener('click', function (e) {
     var b = e.target.closest('button');
     if (!b) return;
     nieuwRoute = b.getAttribute('data-waarde');
     zetKeuze($('n-route'), nieuwRoute);
+    $('nieuw').querySelector('[data-fout="route"]').textContent = '';
   });
 
   $('nieuw').addEventListener('submit', function (e) {
@@ -307,7 +327,11 @@
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') sluitUitleg(); });
   $('detail').addEventListener('scroll', sluitUitleg);
 
-  // ---------- Detail ----------
+  // ---------- Detail: drie schermen ----------
+  // Formulier (samen invullen), afronden (na "Ingevuld") en controle (Dimitri, vanaf "Wacht op controle").
+  var FORMULIER_STATUSSEN = ['Samen invullen', 'Aangemaakt', 'Uitgenodigd', 'Deels ingevuld', 'Terug bij partner'];
+  var bewerkStap = null; // controlescherm: welk blok staat open voor wijzigen (index in FORMULIER_STAPPEN)
+
   function openPaneel() {
     $('detail').classList.add('open');
     $('detail').setAttribute('aria-hidden', 'false');
@@ -318,6 +342,7 @@
     $('detailInhoud').innerHTML = '<button class="terug" data-actie="terug">‹ Terug</button>' +
       '<div class="laad-regel"></div><div class="laad-regel kort"></div><div class="laad-regel"></div>';
     openPaneel();
+    bewerkStap = null;
     roep('detail', [id]).then(toonDetail).catch(function (e) {
       if (e.message !== 'Uitgelogd.') { toon(e.message, true); sluitDetail(); }
     });
@@ -330,121 +355,241 @@
     huidig = null;
   }
 
-  var DAGNAMEN = { ma: 'Ma', di: 'Di', wo: 'Wo', do: 'Do', vr: 'Vr', za: 'Za', zo: 'Zo' };
-  var DAGNAMEN_VOL = { ma: 'maandag', di: 'dinsdag', wo: 'woensdag', do: 'donderdag', vr: 'vrijdag', za: 'zaterdag', zo: 'zondag' };
-
-  function veldHtml(d, p, uit) {
-    var id = 'v-' + d.veld;
-    var dis = uit ? ' disabled' : '';
-    var w = p[d.veld] == null ? '' : p[d.veld];
-    var label = '<label for="' + id + '">' + esc(d.label) + infoKnop(d.veld, d.label) + '</label>';
-    var invoer;
-    if (d.soort === 'keuze') {
-      label = '<div class="label">' + esc(d.label) + infoKnop(d.veld, d.label) + '</div>';
-      invoer = '<div class="keuze" data-keuze="' + esc(d.veld) + '" role="group" aria-label="' + esc(d.label) + '">' +
-        KEUZES[d.keuzes].map(function (k) {
-          return '<button type="button" data-waarde="' + esc(k[0]) + '" aria-pressed="' + (w === k[0]) + '"' + dis + '>' +
-            esc(k[1]) + '</button>';
-        }).join('') + '</div>';
-    } else if (d.soort === 'tijden') {
-      label = '<div class="label">' + esc(d.label) + infoKnop(d.veld, d.label) + '</div>';
-      var t = leesTijden(w);
-      invoer = '<div class="tijden" data-tijden="' + esc(d.veld) + '">' + DAGEN.map(function (dag) {
-        var v = t[dag] || [];
-        return '<span class="dag">' + DAGNAMEN[dag] + '</span>' + [0, 1].map(function (i) {
-          return '<input data-dag="' + dag + '" data-i="' + i + '" value="' + esc(v[i] || '') + '" placeholder="' +
-            (dag !== 'ma' ? '' : i ? '16:30-21:30' : '11:30-14:00') + '" inputmode="numeric" autocomplete="off" aria-label="' + esc(d.label) + ' ' + DAGNAMEN_VOL[dag] +
-            ', tijdvak ' + (i + 1) + '"' + dis + '>';
-        }).join('');
-      }).join('') + '</div>';
-    } else if (d.soort === 'bsn') {
-      invoer = '<div class="bsn-rij" id="bsn-tonen"' + (p.heeft_bsn ? '' : ' hidden') + '><span class="waarde" id="bsn-waarde">' +
-        esc(p.bsn_gemaskeerd) + '</span><button type="button" class="klein-knop" data-actie="toon-bsn">Toon</button>' +
-        (uit ? '' : '<button type="button" class="klein-knop" data-actie="wijzig-bsn">Wijzigen</button>') + '</div>' +
-        '<input id="' + id + '" data-veld="bsn" inputmode="numeric" autocomplete="off"' + (p.heeft_bsn ? ' hidden' : '') + dis + '>';
-    } else if (d.soort === 'postcodes') {
-      invoer = '<textarea id="' + id + '" data-veld="' + esc(d.veld) + '" rows="2" placeholder="Bijv. 8231-8245, 8211"' + dis + '>' +
-        esc(w) + '</textarea>';
-    } else {
-      var type = d.soort === 'email' ? ' type="email" inputmode="email" autocapitalize="off"' :
-        d.soort === 'telefoon' ? ' type="tel" inputmode="tel"' : d.soort === 'kvk' ? ' inputmode="numeric"' : '';
-      invoer = '<input id="' + id + '" data-veld="' + esc(d.veld) + '" value="' + esc(w) + '"' + type + ' autocomplete="off"' + dis + '>';
-    }
-    return '<div class="veld" data-rij="' + esc(d.veld) + '">' + label + invoer +
-      '<div class="veld-status" data-status="' + esc(d.veld) + '"></div></div>';
-  }
-
-  function zichtbaar(veld, p) {
-    if (veld === 'bsn') return p.rechtsvorm === 'eenmanszaak';
-    if (veld === 'eu_land') return p.eu_vestiging === 'ja';
-    if (veld === 'koppeling_anders') return p.koppeling === 'other';
-    return true;
-  }
-  function werkZichtbaarheidBij() {
-    if (!huidig) return;
-    ['bsn', 'eu_land', 'koppeling_anders'].forEach(function (v) {
-      var rij = document.querySelector('[data-rij="' + v + '"]');
-      if (rij) rij.hidden = !zichtbaar(v, huidig);
-    });
-  }
-
-  function beheerVeld(veld, label, waarde, type, uit, extra) {
-    return '<div class="veld" data-rij="' + veld + '"><label for="v-' + veld + '">' + esc(label) + '</label>' +
-      '<input id="v-' + veld + '" data-veld="' + veld + '" value="' + esc(waarde) + '"' + (type || '') + ' autocomplete="off"' +
-      (uit ? ' disabled' : '') + '>' + (extra || '') + '<div class="veld-status" data-status="' + veld + '"></div></div>';
+  function kopHtml(p) {
+    return '<button class="terug" data-actie="terug">‹ Terug</button>' +
+      '<div class="kop-detail"><div><p class="merk">' + esc(p.id) + ' · ' +
+      (p.route === 'samen' ? 'samen invullen' : 'partner vult zelf in') + '</p><h1>' + esc(naamVan(p) || p.id) + '</h1></div>' +
+      badge(p.status) + '</div>';
   }
 
   function toonDetail(p) {
     huidig = p;
-    var uit = !p.mag_bewerken;
-    var h = '<button class="terug" data-actie="terug">‹ Terug</button>' +
-      '<div class="kop-detail"><div><p class="merk">' + esc(p.id) + ' · ' + (p.route === 'samen' ? 'samen invullen' : 'partner vult zelf in') +
-      '</p><h1>' + esc(naamVan(p) || p.id) + '</h1></div>' + badge(p.status) + '</div>';
+    if (FORMULIER_STATUSSEN.indexOf(p.status) !== -1) toonFormulier(p);
+    else toonControle(p);
+    if (p.markering && !p.markering.actueel && heeftPostcodes(p)) planAfstanden(true);
+  }
 
-    h += statusUitleg(p);
+  function heeftPostcodes(p) {
+    return leesRijen(p.bezorggebied).some(function (r) { return String(r.postcodes || '').trim(); });
+  }
 
-    h += '<section class="kaart"><h2>Partner</h2>' +
-      beheerVeld('naam_start', 'Naam', p.naam_start, '', uit) +
-      beheerVeld('email', 'E-mail partner', p.email, ' type="email" inputmode="email" autocapitalize="off"', uit) +
-      beheerVeld('stad', 'Stad (vestigingsnaam)', p.stad, '', uit) +
-      beheerVeld('customer_facing_email', 'Customer-facing e-mailadres', p.customer_facing_email,
-        ' type="email" inputmode="email" autocapitalize="off"', uit, '<div class="klein">Moet uniek zijn over alle partners.</div>') +
-      beheerVeld('email_doorsturen', 'Eigen mailadres voor doorsturen', p.email_doorsturen,
-        ' type="email" inputmode="email" autocapitalize="off"', uit,
-        '<div class="klein">Hierheen wordt ' + esc(p.customer_facing_email) + ' later doorgestuurd (nog niet gekoppeld).</div>') +
-      '</section>';
+  // ---------- Velden tekenen ----------
+  var DAGNAMEN = { ma: 'Ma', di: 'Di', wo: 'Wo', do: 'Do', vr: 'Vr', za: 'Za', zo: 'Zo' };
 
-    FORMULIER_STAPPEN.forEach(function (stap) {
-      h += '<section class="kaart"><h2>' + esc(stap.titel) + '</h2>' + stap.velden.map(function (d) {
-        return veldHtml(d, p, uit);
-      }).join('') + '</section>';
+  function veldInvoer(d, p, uit) {
+    var id = 'v-' + d.veld;
+    var dis = uit ? ' disabled' : '';
+    var w = p[d.veld] == null ? '' : p[d.veld];
+    var vb = d.voorbeeld ? ' placeholder="' + esc(d.voorbeeld) + '"' : '';
+    if (d.soort === 'keuze') {
+      return '<div class="keuze" data-keuze="' + esc(d.veld) + '" role="group" aria-label="' + esc(d.label) + '">' +
+        KEUZES[d.keuzes].map(function (k) {
+          return '<button type="button" data-waarde="' + esc(k[0]) + '" aria-pressed="' + (w === k[0]) + '"' + dis + '>' +
+            esc(k[1]) + '</button>';
+        }).join('') + '</div>';
+    }
+    if (d.soort === 'vinkje') {
+      return '<label class="vink-regel"><input type="checkbox" id="' + id + '" data-vinkje="' + esc(d.veld) + '"' +
+        (w !== 'nee' ? ' checked' : '') + dis + '> ' + esc(d.label) + '</label>';
+    }
+    if (d.soort === 'tijden') {
+      var t = leesTijden(w);
+      return '<div class="tijden" data-tijden="' + esc(d.veld) + '">' + DAGEN.map(function (dag) {
+        var v = t[dag] || [];
+        return '<span class="dag">' + DAGNAMEN[dag] + '</span>' + [0, 1].map(function (i) {
+          return '<input data-dag="' + dag + '" data-i="' + i + '" value="' + esc(v[i] || '') + '" placeholder="' +
+            (dag !== 'ma' ? '' : i ? '16:30-21:30' : '11:30-14:00') + '" inputmode="numeric" autocomplete="off" aria-label="' +
+            esc(d.label) + ' ' + DAG_NAAM[dag] + ', tijdvak ' + (i + 1) + '"' + dis + '>';
+        }).join('');
+      }).join('') + '</div>';
+    }
+    if (d.soort === 'bsn') {
+      return '<div class="bsn-rij" id="bsn-tonen"' + (p.heeft_bsn ? '' : ' hidden') + '><span class="waarde" id="bsn-waarde">' +
+        esc(p.bsn_gemaskeerd) + '</span><button type="button" class="klein-knop" data-actie="toon-bsn">Toon</button>' +
+        (uit ? '' : '<button type="button" class="klein-knop" data-actie="wijzig-bsn">Wijzigen</button>') + '</div>' +
+        '<input id="' + id + '" data-veld="bsn" inputmode="numeric" autocomplete="off"' + vb + (p.heeft_bsn ? ' hidden' : '') + dis + '>';
+    }
+    if (d.soort === 'bezorgrijen') return rijenHtml(p, uit, false);
+    var type = d.soort === 'email' ? ' type="email" inputmode="email" autocapitalize="off"' :
+      d.soort === 'telefoon' ? ' type="tel" inputmode="tel"' :
+      ['kvk', 'cijfers', 'huisnummer'].indexOf(d.soort) !== -1 ? ' inputmode="numeric"' : '';
+    return '<input id="' + id + '" data-veld="' + esc(d.veld) + '" value="' + esc(w) + '"' + type + vb + ' autocomplete="off"' + dis + '>';
+  }
+
+  function labelHtml(d) {
+    if (d.soort === 'vinkje') return '';
+    var alsLabel = ['keuze', 'tijden', 'bezorgrijen'].indexOf(d.soort) === -1 && d.soort !== 'bsn';
+    return alsLabel ? '<label for="v-' + esc(d.veld) + '">' + esc(d.label) + infoKnop(d.veld, d.label) + '</label>' :
+      '<div class="label">' + esc(d.label) + infoKnop(d.veld, d.label) + '</div>';
+  }
+
+  /** Eén stap als velden; velden met dezelfde `rij` naast elkaar, `kop` als tussenkop. */
+  function stapVelden(stap, p, uit) {
+    var h = '';
+    var i = 0;
+    while (i < stap.velden.length) {
+      var d = stap.velden[i];
+      var kop = d.kop ? '<h3 class="tussenkop" data-kop="' + esc(d.veld) + '">' + esc(d.kop) + '</h3>' : '';
+      if (d.rij) {
+        var groep = [];
+        while (i < stap.velden.length && stap.velden[i].rij === d.rij) groep.push(stap.velden[i++]);
+        h += kop + '<div class="veld-rij">' + groep.map(function (x) { return veldBlok(x, p, uit); }).join('') + '</div>' +
+          '<div class="klein adres-melding" data-adres-melding="' + esc(d.rij) + '" hidden></div>';
+      } else {
+        h += kop + veldBlok(d, p, uit);
+        i++;
+      }
+    }
+    return h;
+  }
+
+  function veldBlok(d, p, uit) {
+    return '<div class="veld" data-rij="' + esc(d.veld) + '">' + labelHtml(d) + veldInvoer(d, p, uit) +
+      '<div class="veld-status" data-status="' + esc(d.veld) + '"></div></div>';
+  }
+
+  function werkZichtbaarheidBij() {
+    if (!huidig) return;
+    alleFormulierVelden().forEach(function (d) {
+      var zicht = veldZichtbaar(d, huidig);
+      var rij = document.querySelector('#detailInhoud [data-rij="' + d.veld + '"]');
+      if (rij) rij.hidden = !zicht;
+      var kop = document.querySelector('#detailInhoud [data-kop="' + d.veld + '"]');
+      if (kop) kop.hidden = !zicht;
     });
+    document.querySelectorAll('#detailInhoud .veld-rij').forEach(function (r) {
+      r.hidden = !Array.prototype.some.call(r.children, function (c) { return !c.hidden; });
+    });
+  }
 
-    if (p.status === 'Wacht op controle' || p.status === 'Te tekenen') h += controleHtml(p, p.status !== 'Wacht op controle');
-
-    h += '<div class="acties">';
-    if (['Samen invullen', 'Aangemaakt', 'Uitgenodigd', 'Deels ingevuld', 'Terug bij partner'].indexOf(p.status) !== -1) {
-      h += '<button class="knop" data-actie="ingevuld">Ingevuld</button>';
+  // ---------- Bezorggebied (5 rijen) ----------
+  function leesRijen(w) {
+    var g = leesTijden(w);
+    var rijen = Array.isArray(g) ? g : [];
+    while (rijen.length < 5) {
+      rijen.push({ postcodes: '', moa: inst.standaard_moa, bezorgkosten: inst.standaard_bezorgkosten, gratisVanaf: inst.standaard_gratis_vanaf });
     }
-    if (p.status === 'Wacht op controle') h += '<button class="knop" data-actie="akkoord">Akkoord</button>';
-    if (['Getekend', 'Geannuleerd'].indexOf(p.status) === -1) {
-      h += '<button class="knop gevaar" data-actie="annuleren">Partner annuleren</button>';
-    }
-    h += '</div>';
+    return rijen.slice(0, 5);
+  }
 
+  function bedragTekst(x) {
+    return typeof x === 'number' && isFinite(x) ? formatGetal(x, true) : String(x == null ? '' : x);
+  }
+
+  /** beheer = true: bedragen aanpasbaar en afstanden per postcode zichtbaar (controlescherm). */
+  function rijenHtml(p, uit, beheer) {
+    var dis = uit ? ' disabled' : '';
+    var std = 'Standaard: minimum € ' + formatGetal(inst.standaard_moa, true) + ', bezorgkosten € ' +
+      formatGetal(inst.standaard_bezorgkosten, true) + ', gratis bezorging vanaf € ' + formatGetal(inst.standaard_gratis_vanaf, true) + '.';
+    return '<div class="klein">' + esc(std) + '</div><div id="rijen">' + leesRijen(p.bezorggebied).map(function (r, i) {
+      var bedrag = function (k, label) {
+        return beheer ? '<div><label for="r' + i + '-' + k + '">' + label + '</label><input id="r' + i + '-' + k + '" data-rij-nr="' + i +
+          '" data-k="' + k + '" inputmode="decimal" value="' + esc(bedragTekst(r[k])) + '"' + dis + '></div>' :
+          '<div class="bedrag-vast"><span>' + label + '</span><strong>' + esc(bedragTekst(r[k])) + '</strong>' +
+          '<input type="hidden" data-rij-nr="' + i + '" data-k="' + k + '" value="' + esc(bedragTekst(r[k])) + '"></div>';
+      };
+      return '<div class="groep" data-bezorgrij="' + i + '"><div class="groep-kop"><span>Rij ' + (i + 1) + '</span></div>' +
+        '<label for="r' + i + '-postcodes" class="sr">Postcodes rij ' + (i + 1) + '</label>' +
+        '<textarea id="r' + i + '-postcodes" data-rij-nr="' + i + '" data-k="postcodes" rows="1" placeholder="' +
+        (i === 0 ? 'Bijv. 8231-8245, 8211' : '') + '"' + dis + '>' + esc(r.postcodes) + '</textarea>' +
+        '<div class="bedragen">' + bedrag('moa', 'Minimum (€)') + bedrag('bezorgkosten', 'Bezorgkosten (€)') +
+        bedrag('gratisVanaf', 'Gratis vanaf (€)') + '</div>' +
+        '<div class="rij-melding" data-rij-melding="' + i + '" hidden></div></div>';
+    }).join('') + '</div>' + (beheer ? '<div class="klein">Rijafstand tot het midden van het postcodegebied; de randen ' +
+      'kunnen verder liggen.</div>' : '');
+  }
+
+  function rijenUitScherm() {
+    var rijen = [];
+    document.querySelectorAll('#rijen [data-k]').forEach(function (el) {
+      var i = Number(el.getAttribute('data-rij-nr'));
+      rijen[i] = rijen[i] || {};
+      rijen[i][el.getAttribute('data-k')] = el.value;
+    });
+    return rijen.filter(Boolean);
+  }
+
+  /** Markering per rij: voor de partner alleen de grenstekst; in het controlescherm ook km per postcode. */
+  function toonMarkering(m, beheer) {
+    if (!m) return;
+    (m.rijen || []).forEach(function (r, i) {
+      var el = document.querySelector('[data-rij-melding="' + i + '"]');
+      var blok = document.querySelector('[data-bezorgrij="' + i + '"]');
+      if (!el) return;
+      if (blok) blok.classList.toggle('boven-grens', r.boven);
+      var h = '';
+      if (beheer && r.postcodes.length) {
+        h += '<div class="afstanden">' + r.postcodes.map(function (x) {
+          var km = x.km === null ? 'onbekend' : String(x.km).replace('.', ',') + ' km' + (x.schatting ? ' (schatting)' : '');
+          return '<span class="' + (x.km !== null && x.km > m.grens_km ? 'ver' : '') + '">' + x.pc + ': ' + esc(km) + '</span>';
+        }).join(' · ') + '</div>';
+      }
+      if (r.boven) h += '<div class="grens-tekst">' + esc(grensTekst(m.grens_km)) + '</div>';
+      el.innerHTML = h;
+      el.hidden = !h;
+    });
+    var info = $('afstandInfo');
+    if (info) {
+      info.textContent = m.fout || (m.te_veel ? 'Meer dan 60 postcodes: niet alle afstanden zijn berekend.' : '');
+      info.hidden = !info.textContent;
+    }
+  }
+
+  var afstandTimer = null;
+  function planAfstanden(direct) {
+    clearTimeout(afstandTimer);
+    var id = huidig && huidig.id;
+    if (!id) return;
+    afstandTimer = setTimeout(function () {
+      var bezig = $('afstandBezig');
+      if (bezig) bezig.hidden = false;
+      reeks.then(function () { return roep('afstanden', [id]); }).then(function (r) {
+        if (bezig) bezig.hidden = true;
+        if (!huidig || huidig.id !== id) return;
+        huidig.markering = r.markering;
+        toonMarkering(r.markering, $('controle') !== null);
+        if (r.melding) toon(r.melding, true);
+      }).catch(function () { if (bezig) bezig.hidden = true; });
+    }, direct ? 0 : 1500);
+  }
+
+  // ---------- Scherm 1: formulier (samen invullen) ----------
+  function toonFormulier(p) {
+    var uit = !p.mag_bewerken;
+    var h = kopHtml(p) + statusUitleg(p);
+    if (p.testmodus && !uit) h += '<button type="button" class="klein-knop mt" data-actie="testgegevens">Vul testgegevens in</button>';
+    FORMULIER_STAPPEN.forEach(function (stap) {
+      h += '<section class="kaart"><h2>' + esc(stap.titel) + '</h2>' + stapVelden(stap, p, uit) +
+        (stap.titel === 'Bezorggebied' ? '<div class="klein" id="afstandInfo" hidden></div>' : '') + '</section>';
+    });
+    h += '<div class="acties"><button class="knop" data-actie="ingevuld">Ingevuld</button></div>';
+    h += '<details class="kaart beheerdeel"><summary>Gegevens Virtualbite</summary>' + partnerKaartVelden(p, uit) + '</details>';
     $('detailInhoud').innerHTML = h;
     werkZichtbaarheidBij();
-    if (p.status === 'Wacht op controle') { toonControleFouten(p.controle_fouten); werkVoorbeeldBij(); }
+    toonMarkering(p.markering, false);
+  }
+
+  function partnerKaartVelden(p, uit, zonderCf) {
+    var veld = function (v, label, type, extra) {
+      return '<div class="veld" data-rij="' + v + '"><label for="v-' + v + '">' + esc(label) + '</label>' +
+        '<input id="v-' + v + '" data-veld="' + v + '" value="' + esc(p[v]) + '"' + (type || '') + ' autocomplete="off"' +
+        (uit ? ' disabled' : '') + '>' + (extra || '') + '<div class="veld-status" data-status="' + v + '"></div></div>';
+    };
+    var mail = ' type="email" inputmode="email" autocapitalize="off"';
+    return veld('naam_start', 'Naam') + veld('email', 'E-mail partner', mail) + veld('stad', 'Stad (vestigingsnaam)') +
+      (zonderCf ? '' : veld('customer_facing_email', 'Customer-facing e-mailadres', mail,
+        '<div class="klein">Moet uniek zijn over alle partners.</div>')) +
+      veld('email_doorsturen', 'Eigen mailadres voor doorsturen', mail, '<div class="klein">Hierheen wordt ' +
+        esc(p.customer_facing_email) + ' later doorgestuurd (nog niet gekoppeld).</div>') +
+      (['Getekend', 'Geannuleerd'].indexOf(p.status) === -1 ?
+        '<button class="knop gevaar mt" data-actie="annuleren">Partner annuleren</button>' : '');
   }
 
   function statusUitleg(p) {
     var t = {
-      'Samen invullen': ['info', 'Vul het formulier samen in. Alles wordt per veld opgeslagen. Klaar? Klik op "Ingevuld". ' +
-        'Er gaat nog niets naar de partner.'],
+      'Samen invullen': ['info', 'Vul het formulier samen in. Alles wordt per veld opgeslagen. Klaar? Klik op "Ingevuld".'],
       'Aangemaakt': ['info', 'De partner vult zelf in. De uitnodigingsmail met de link wordt gebouwd in fase 3; ' +
         'tot die tijd kun je het formulier hier invullen en op "Ingevuld" klikken.'],
-      'Wacht op controle': ['let', 'Controleer alles, vul fee en startdatum in, pas zo nodig het bezorggebied aan en ' +
-        'klik op "Akkoord".'],
       'Te tekenen': ['info', 'Akkoord gegeven' + (p.gecontroleerd_op ? ' op ' + p.gecontroleerd_op : '') + '. Het versturen ' +
         'van de overeenkomst wordt gebouwd in fase 4.'],
       'Geannuleerd': ['let', 'Deze partner is geannuleerd' + (p.geannuleerd_op ? ' op ' + p.geannuleerd_op : '') + '.']
@@ -452,119 +597,198 @@
     return t ? '<div class="melding-blok mb-' + t[0] + '">' + esc(t[1]) + '</div>' : '';
   }
 
-  // ---------- Controlestap ----------
-  function controleHtml(p, uit) {
-    var dis = uit ? ' disabled' : '';
-    var groepen = leesBezorggebied(p.bezorggebied);
-    return '<section class="kaart" id="controle"><h2>Controle</h2>' +
-      '<div class="veld" data-rij="fee_percentage"><label for="v-fee_percentage">Fee-percentage</label>' +
-      '<input id="v-fee_percentage" data-veld="fee_percentage" inputmode="decimal" value="' +
-      esc(String(p.fee_percentage == null ? '' : p.fee_percentage).replace('.', ',')) + '"' + dis + '>' +
-      '<div class="voorbeeld" id="voorbeeld"></div><div class="veld-status" data-status="fee_percentage"></div></div>' +
-      '<div class="veld" data-rij="startdatum"><label for="v-startdatum">Startdatum</label>' +
-      '<input id="v-startdatum" data-veld="startdatum" type="date" value="' + esc(p.startdatum) + '"' + dis + '>' +
-      '<div class="veld-status" data-status="startdatum"></div></div>' +
-      '<div class="veld" data-rij="bezorggebied"><div class="label">Bezorggebied en bedragen per postcoderegel</div>' +
-      '<div class="klein">Eén groep = dezelfde bedragen. Zet postcodes met andere bedragen (bijv. buiten de stad) in een ' +
-      'eigen groep. Gewenst door de partner: ' + esc(p.postcodes_gewenst || '–') + '</div>' +
-      '<div id="groepen">' + groepen.map(function (g, i) { return groepHtml(g, i, uit); }).join('') + '</div>' +
-      (uit ? '' : '<button type="button" class="klein-knop mt" data-actie="groep-erbij">Groep toevoegen</button>') +
-      '<div class="veld-status" data-status="bezorggebied"></div></div>' +
-      '<div id="controleFouten"></div></section>';
+  // ---------- Scherm 2: afronden (na "Ingevuld" bij samen invullen) ----------
+  function toonAfronden() {
+    $('detailInhoud').innerHTML = '<div class="afronden"><h1>Bedankt!</h1><p>Je gegevens zijn compleet. Virtualbite ' +
+      'controleert alles en je ontvangt de overeenkomst per mail.</p>' +
+      '<button class="knop" data-actie="terug">Terug naar overzicht</button></div>';
+    $('detail').scrollTop = 0;
   }
 
-  function groepHtml(g, i, uit) {
-    var dis = uit ? ' disabled' : '';
-    var bedrag = function (k, label) {
-      return '<div><label for="g' + i + '-' + k + '">' + label + '</label><input id="g' + i + '-' + k + '" data-groep="' + i +
-        '" data-k="' + k + '" inputmode="decimal" value="' + esc(typeof g[k] === 'number' && isFinite(g[k]) ? formatGetal(g[k], true) :
-        String(g[k] == null ? '' : g[k])) + '"' + dis + '></div>';
-    };
-    return '<div class="groep"><div class="groep-kop"><span>Groep ' + (i + 1) + '</span>' +
-      (uit || i === 0 ? '' : '<button type="button" class="tekst-knop" data-actie="groep-weg" data-groep="' + i + '">Verwijderen</button>') +
-      '</div><label for="g' + i + '-postcodes">Postcodes</label><textarea id="g' + i + '-postcodes" data-groep="' + i +
-      '" data-k="postcodes" rows="2"' + dis + '>' + esc(g.postcodes) + '</textarea><div class="bedragen">' +
-      bedrag('moa', 'Minimum (€)') + bedrag('bezorgkosten', 'Bezorgkosten (€)') + bedrag('gratisVanaf', 'Gratis vanaf (€)') +
-      '</div></div>';
-  }
-
-  function leesBezorggebied(w) {
-    var g = leesTijden(w);
-    return Array.isArray(g) ? g : [];
-  }
-
-  function groepenUitScherm() {
-    var groepen = [];
-    document.querySelectorAll('#groepen [data-k]').forEach(function (el) {
-      var i = Number(el.getAttribute('data-groep'));
-      groepen[i] = groepen[i] || {};
-      groepen[i][el.getAttribute('data-k')] = el.value;
+  // ---------- Scherm 3: controle (Dimitri) ----------
+  function toonControle(p) {
+    var uit = p.status !== 'Wacht op controle';
+    var h = kopHtml(p) + statusUitleg(p);
+    h += '<section class="kaart" id="controle"><h2>In te vullen door Virtualbite</h2>' + controleVelden(p, uit) + '</section>';
+    h += '<div id="controleFouten"></div>';
+    FORMULIER_STAPPEN.forEach(function (stap, i) {
+      if (stap.titel === 'Bezorggebied') return; // staat bovenaan
+      var open = bewerkStap === i && !uit;
+      h += '<section class="kaart" data-stap="' + i + '"><div class="kaart-kop"><h2>' + esc(stap.titel) + '</h2>' +
+        (uit ? '' : '<button type="button" class="tekst-knop" data-actie="' + (open ? 'klaar-stap' : 'wijzig-stap') +
+          '" data-stap="' + i + '">' + (open ? 'Klaar' : 'Wijzig') + '</button>') + '</div>' +
+        (open ? stapVelden(stap, p, false) : samenvatting(stap, p)) + '</section>';
     });
-    return groepen.filter(Boolean);
+    h += '<details class="kaart beheerdeel"><summary>Partner (naam, e-mail, doorsturen)</summary>' + partnerKaartVelden(p, uit, true) + '</details>';
+    if (!uit) h += '<div class="acties"><button class="knop" data-actie="akkoord">Akkoord</button></div>';
+    $('detailInhoud').innerHTML = h;
+    werkZichtbaarheidBij();
+    toonMarkering(p.markering, true);
+    werkVoorbeeldBij();
+    toonControleFouten(p.controle_fouten, p.waarschuwingen_formulier);
+  }
+
+  function controleVelden(p, uit) {
+    var dis = uit ? ' disabled' : '';
+    var heeftUitzondering = !!String(p.openingstijden_uitzondering || '').trim();
+    var veld = function (v, label, invoer, extra) {
+      return '<div class="veld" data-rij="' + v + '"><label for="v-' + v + '">' + esc(label) + '</label>' + invoer + (extra || '') +
+        '<div class="veld-status" data-status="' + v + '"></div></div>';
+    };
+    return veld('fee_percentage', 'Fee-percentage', '<input id="v-fee_percentage" data-veld="fee_percentage" inputmode="decimal" value="' +
+        esc(String(p.fee_percentage == null ? '' : p.fee_percentage).replace('.', ',')) + '" placeholder="9"' + dis + '>',
+        '<div class="voorbeeld" id="voorbeeld"></div>') +
+      veld('startdatum', 'Startdatum', '<input id="v-startdatum" data-veld="startdatum" type="date" value="' + esc(p.startdatum) + '"' + dis + '>') +
+      veld('customer_facing_email', 'Customer-facing e-mailadres', '<input id="v-customer_facing_email" data-veld="customer_facing_email" ' +
+        'type="email" inputmode="email" autocapitalize="off" value="' + esc(p.customer_facing_email) + '"' + dis + '>',
+        '<div class="klein">Moet uniek zijn over alle partners.</div>') +
+      '<div class="veld"><div class="label">Openingstijden</div><div class="klein">Minimaal ' + esc(OPENINGS_MINIMUM) +
+        ' op vrijdag, zaterdag, zondag en minimaal 2 andere dagen.</div>' +
+        '<div id="uitzondering"' + (heeftUitzondering ? '' : ' hidden') + '>' +
+        veld('openingstijden_uitzondering', 'Reden uitzondering', '<input id="v-openingstijden_uitzondering" ' +
+          'data-veld="openingstijden_uitzondering" value="' + esc(p.openingstijden_uitzondering) + '" placeholder="Bijv. zaak sluit om 20:00"' + dis + '>') +
+        veld('openingstijden_minimum', 'Afwijkende minimale tijd', '<input id="v-openingstijden_minimum" data-veld="openingstijden_minimum" ' +
+          'value="' + esc(p.openingstijden_minimum) + '" placeholder="16:30-20:00" inputmode="numeric"' + dis + '>') + '</div>' +
+        (uit ? '' : '<button type="button" class="klein-knop mt" data-actie="uitzondering">' +
+          (heeftUitzondering ? 'Uitzondering verwijderen' : 'Uitzondering openingstijden') + '</button>') + '</div>' +
+      '<div class="veld" data-rij="bezorggebied"><div class="label">Bezorggebied en bedragen per rij</div>' + rijenHtml(p, uit, true) +
+        '<div class="klein" id="afstandInfo" hidden></div><div class="klein" id="afstandBezig" hidden>Afstanden berekenen…</div>' +
+        (uit ? '' : '<button type="button" class="klein-knop mt" data-actie="afstanden">Afstanden opnieuw berekenen</button>') +
+        '<div class="veld-status" data-status="bezorggebied"></div></div>';
+  }
+
+  /** Samenvatting van een stap (alleen-lezen), in de volgorde van het formulier. */
+  function samenvatting(stap, p) {
+    var regels = [];
+    stap.velden.forEach(function (d) {
+      if (!veldZichtbaar(d, p) || /_(huisnummer|toevoeging)$/.test(d.veld)) return;
+      var w;
+      if (d.rij) { // adres: als één regel
+        var pre = d.veld.replace('_postcode', '_');
+        w = [p[pre + 'straat'], huisnummerMetToevoeging(p[pre + 'huisnummer'], p[pre + 'toevoeging'])].filter(Boolean).join(' ') +
+          ', ' + [p[pre + 'postcode'], p[pre + 'plaats']].filter(Boolean).join(' ');
+        regels.push([d.kop, w]);
+        return;
+      }
+      if (/_(straat|plaats)$/.test(d.veld) && /^(vestiging|locatie)_/.test(d.veld)) return;
+      if (d.soort === 'keuze') w = (KEUZES[d.keuzes].filter(function (k) { return k[0] === p[d.veld]; })[0] || ['', ''])[1];
+      else if (d.soort === 'vinkje') w = p[d.veld] === 'nee' ? 'Nee' : 'Ja';
+      else if (d.soort === 'bsn') w = p.bsn_gemaskeerd;
+      else if (d.soort === 'tijden') {
+        var t = leesTijden(p[d.veld]);
+        w = DAGEN.filter(function (dag) { return (t[dag] || []).some(Boolean); }).map(function (dag) {
+          return DAGNAMEN[dag] + ' ' + t[dag].filter(Boolean).join(', ');
+        }).join(' · ');
+      } else w = p[d.veld];
+      if (d.veld === 'btw_id' && p.btw_vies) w += ' (VIES: ' + p.btw_vies + ')';
+      regels.push([d.label, w]);
+    });
+    return '<dl>' + regels.map(function (r) {
+      return '<div><dt>' + esc(r[0]) + '</dt><dd>' + (r[1] ? esc(r[1]) : '<span class="leeg-waarde">–</span>') + '</dd></div>';
+    }).join('') + '</dl>';
   }
 
   function werkVoorbeeldBij() {
     var el = $('voorbeeld');
     if (!el) return;
-    var fee = $('v-fee_percentage').value;
     try {
-      el.textContent = 'Rekenvoorbeeld "Zo werkt het": ' + rekenvoorbeeld(fee).tekst;
+      el.textContent = 'Rekenvoorbeeld "Zo werkt het": ' + rekenvoorbeeld($('v-fee_percentage').value).tekst;
     } catch (e) {
       el.textContent = 'Vul een percentage in, bijv. 9 of 9,5.';
     }
   }
 
-  function toonControleFouten(fouten) {
+  var EXTRA_LABELS = { fee_percentage: 'Fee-percentage', startdatum: 'Startdatum', bezorggebied: 'Bezorggebied',
+    customer_facing_email: 'Customer-facing e-mailadres', openingstijden_minimum: 'Afwijkende minimale tijd' };
+
+  function toonControleFouten(fouten, waarschuwingen) {
     var el = $('controleFouten');
     if (!el) return;
     var k = Object.keys(fouten || {});
-    el.innerHTML = k.length ? '<div class="melding-blok mb-let">Nog niet klaar voor akkoord:<ul>' + k.map(function (v) {
+    var w = Object.keys(waarschuwingen || {}).filter(function (v) { return !(fouten || {})[v]; });
+    var label = function (v) {
       var d = alleFormulierVelden().filter(function (x) { return x.veld === v; })[0];
-      var label = d ? d.label : { fee_percentage: 'Fee-percentage', startdatum: 'Startdatum', bezorggebied: 'Bezorggebied',
-        customer_facing_email: 'Customer-facing e-mailadres' }[v] || v;
-      return '<li>' + esc(label) + ': ' + esc(fouten[v]) + '</li>';
-    }).join('') + '</ul></div>' : '';
+      return d ? d.label : EXTRA_LABELS[v] || v;
+    };
+    el.innerHTML = (k.length ? '<div class="melding-blok mb-let">Nog niet klaar voor akkoord:<ul>' + k.map(function (v) {
+      return '<li>' + esc(label(v)) + ': ' + esc(fouten[v]) + '</li>';
+    }).join('') + '</ul></div>' : '') + (w.length ? '<div class="melding-blok mb-info">' + w.map(function (v) {
+      return esc(label(v)) + ': ' + esc(waarschuwingen[v]);
+    }).join('<br>') + '</div>' : '');
   }
 
-  // ---------- Automatisch opslaan ----------
+  // ---------- Directe controle en automatisch opslaan ----------
   var timers = {};
+  var wachtend = {}; // veld → opslaan dat nog moet gebeuren (na de korte pauze bij typen)
   var reeks = Promise.resolve(); // opslaan na elkaar, in volgorde
 
+  /** Alles wat nog wacht nu opslaan (vóór "Ingevuld", "Akkoord" of een ander scherm). */
+  function slaWachtendOp() {
+    Object.keys(wachtend).forEach(function (v) {
+      clearTimeout(timers[v]);
+      var doe = wachtend[v];
+      delete wachtend[v];
+      doe();
+    });
+    return reeks;
+  }
+
   function zetStatus(veld, tekst, soort) {
-    var el = document.querySelector('[data-status="' + veld + '"]');
+    var el = document.querySelector('#detailInhoud [data-status="' + veld + '"]');
     if (el) { el.textContent = tekst || ''; el.className = 'veld-status' + (soort ? ' ' + soort : ''); }
   }
+
+  function veldDef(veld) {
+    return alleFormulierVelden().filter(function (x) { return x.veld === veld; })[0] || null;
+  }
+
+  /** Bij typen: een rode melding verdwijnt zodra de waarde klopt (lege velden pas bij "Ingevuld"). */
+  function controleerDirect(veld, waarde, strikt) {
+    var d = veldDef(veld);
+    var el = document.querySelector('#detailInhoud [data-status="' + veld + '"]');
+    if (!d || !el) return true;
+    var tekst = String(waarde == null ? '' : waarde).trim();
+    var fout = tekst ? controleerVeld(d, tekst).fout : '';
+    if (fout && strikt) { zetStatus(veld, fout, 'fout'); return false; }
+    if (!fout && el.classList.contains('fout') && (tekst || !d.verplicht)) zetStatus(veld, '');
+    return !fout;
+  }
+
+  var ADRES_VELDEN = /^(vestiging|locatie)_(postcode|huisnummer|toevoeging|straat|plaats)$/;
 
   function bewaar(veld, waarde, direct) {
     if (!huidig || !huidig.mag_bewerken) return;
     clearTimeout(timers[veld]);
     var id = huidig.id;
     var doe = function () {
+      delete wachtend[veld];
       zetStatus(veld, 'Opslaan…');
       reeks = reeks.then(function () {
         return roep('bewaar', [id, veld, waarde]).then(function (r) {
           if (!huidig || huidig.id !== id) return;
           if (r.fout) { zetStatus(veld, r.fout, 'fout'); return; }
           huidig[veld] = r.waarde;
-          zetStatus(veld, r.waarschuwing || 'Opgeslagen', r.waarschuwing ? 'fout' : 'ok');
+          var melding = r.fout_extern || r.waarschuwing;
+          zetStatus(veld, melding || r.info || 'Opgeslagen', melding ? 'fout' : 'ok');
           if (veld === 'bsn') toonBsnOpgeslagen(r.waarde);
+          if (veld === 'btw_id') huidig.btw_vies = r.info ? r.info.replace(/^VIES: /, '') : huidig.btw_vies;
           if (veld === 'customer_facing_email' || veld === 'email_doorsturen') {
             var el = document.querySelector('[data-veld="' + veld + '"]');
             if (el && document.activeElement !== el) el.value = r.waarde;
           }
+          if (veld === 'bezorggebied' || veld === 'locatie_zelfde' || ADRES_VELDEN.test(veld)) planAfstanden();
         }).catch(function (e) { zetStatus(veld, e.message, 'fout'); });
       });
     };
-    if (direct) doe(); else timers[veld] = setTimeout(doe, 900);
+    if (direct) doe(); else { wachtend[veld] = doe; timers[veld] = setTimeout(doe, 900); }
   }
 
   function toonBsnOpgeslagen(gemaskeerd) {
-    var invoer = $('v-bsn');
     huidig.heeft_bsn = !!gemaskeerd;
     huidig.bsn_gemaskeerd = gemaskeerd;
     $('bsn-waarde').textContent = gemaskeerd;
     $('bsn-tonen').hidden = !gemaskeerd;
-    if (gemaskeerd) { invoer.value = ''; invoer.hidden = true; }
+    if (gemaskeerd) { $('v-bsn').value = ''; $('v-bsn').hidden = true; }
   }
 
   function tijdenUitScherm(veld) {
@@ -577,27 +801,81 @@
     return t;
   }
 
+  // Adres: straat en plaats automatisch via PDOK na postcode + huisnummer (+ toevoeging).
+  var adresTimers = {};
+  var adresLaatste = {};
+  function zoekAdres(pre) {
+    var pc = $('v-' + pre + '_postcode');
+    var nr = $('v-' + pre + '_huisnummer');
+    var tv = $('v-' + pre + '_toevoeging');
+    var melding = document.querySelector('[data-adres-melding="' + pre + '-nr"]');
+    if (!pc || !nr || !melding) return;
+    var url = pdokUrl(pc.value, nr.value);
+    if (!url) { melding.hidden = true; adresLaatste[pre] = ''; return; }
+    var sleutel = url + '|' + tv.value;
+    if (sleutel === adresLaatste[pre]) return;
+    adresLaatste[pre] = sleutel;
+    fetch(url, { credentials: 'omit', referrerPolicy: 'no-referrer' }).then(function (r) {
+      if (!r.ok) throw new Error('PDOK');
+      return r.json();
+    }).then(function (j) {
+      if (sleutel !== adresLaatste[pre]) return;
+      var o = bagOordeel(j.response.docs, { toevoeging: tv.value });
+      if (o.nummerBestaat) {
+        [['straat', o.straat], ['plaats', o.woonplaats]].forEach(function (x) {
+          var el = $('v-' + pre + '_' + x[0]);
+          if (!el || el.value === x[1]) return;
+          el.value = x[1];
+          controleerDirect(pre + '_' + x[0], x[1]);
+          bewaar(pre + '_' + x[0], x[1], true);
+        });
+      }
+      melding.textContent = o.gevonden ? '' : 'Dit adres kunnen we niet vinden. Controleer postcode, huisnummer en toevoeging.';
+      melding.hidden = o.gevonden;
+    }).catch(function () { adresLaatste[pre] = ''; melding.hidden = true; });
+  }
+  function planAdres(veld) {
+    var m = /^(vestiging|locatie)_(postcode|huisnummer|toevoeging)$/.exec(veld);
+    if (!m) return;
+    clearTimeout(adresTimers[m[1]]);
+    adresTimers[m[1]] = setTimeout(function () { zoekAdres(m[1]); }, 600);
+  }
+
   var detail = $('detailInhoud');
   detail.addEventListener('input', function (e) {
     var el = e.target;
     if (el.hasAttribute('data-veld')) {
       var veld = el.getAttribute('data-veld');
       if (veld === 'fee_percentage') werkVoorbeeldBij();
+      controleerDirect(veld, el.value);
+      planAdres(veld);
       if (veld === 'bsn' && el.value.replace(/\D/g, '').length < 9) return; // pas bewaren als het compleet is
       bewaar(veld, el.value);
     } else if (el.closest('[data-tijden]')) {
-      // tijden pas bij verlaten van het vak (halve tijden zijn nog ongeldig)
-    } else if (el.hasAttribute('data-k')) {
-      bewaar('bezorggebied', groepenUitScherm());
+      var vak = el.closest('[data-tijden]').getAttribute('data-tijden');
+      var st = document.querySelector('#detailInhoud [data-status="' + vak + '"]');
+      if (st && st.classList.contains('fout') && el.value.trim() && normaliseerTijdvak(el.value)) zetStatus(vak, '');
+    } else if (el.hasAttribute('data-rij-nr')) {
+      bewaar('bezorggebied', rijenUitScherm());
     }
   });
   detail.addEventListener('change', function (e) {
     var el = e.target;
-    if (el.hasAttribute('data-veld')) bewaar(el.getAttribute('data-veld'), el.value, true);
-    else if (el.closest('[data-tijden]')) {
-      var veld = el.closest('[data-tijden]').getAttribute('data-tijden');
-      bewaar(veld, tijdenUitScherm(veld), true);
-    } else if (el.hasAttribute('data-k')) bewaar('bezorggebied', groepenUitScherm(), true);
+    if (el.hasAttribute('data-vinkje')) {
+      var v = el.getAttribute('data-vinkje');
+      huidig[v] = el.checked ? 'ja' : 'nee';
+      werkZichtbaarheidBij();
+      bewaar(v, huidig[v], true);
+    } else if (el.hasAttribute('data-veld')) {
+      var veld = el.getAttribute('data-veld');
+      if (controleerDirect(veld, el.value, true)) bewaar(veld, el.value, true);
+      else bewaar(veld, el.value, true); // half ingevuld toch bewaren; melding blijft staan
+    } else if (el.closest('[data-tijden]')) {
+      var vak = el.closest('[data-tijden]').getAttribute('data-tijden');
+      bewaar(vak, tijdenUitScherm(vak), true);
+    } else if (el.hasAttribute('data-rij-nr')) {
+      bewaar('bezorggebied', rijenUitScherm(), true);
+    }
   });
 
   detail.addEventListener('click', function (e) {
@@ -608,6 +886,7 @@
       var waarde = keuze.getAttribute('data-waarde');
       zetKeuze(groep, waarde);
       huidig[veld] = waarde;
+      zetStatus(veld, '');
       werkZichtbaarheidBij();
       bewaar(veld, waarde, true);
       return;
@@ -615,7 +894,7 @@
     var knop = e.target.closest('[data-actie]');
     if (!knop) return;
     var actie = knop.getAttribute('data-actie');
-    if (actie === 'terug') { sluitDetail(); laad(); return; }
+    if (actie === 'terug') { slaWachtendOp(); sluitDetail(); laad(); return; }
     if (actie === 'toon-bsn') {
       if (knop.textContent === 'Verberg') { $('bsn-waarde').textContent = huidig.bsn_gemaskeerd; knop.textContent = 'Toon'; return; }
       roep('toonBsn', [huidig.id]).then(function (r) {
@@ -625,20 +904,36 @@
       return;
     }
     if (actie === 'wijzig-bsn') { $('bsn-tonen').hidden = true; $('v-bsn').hidden = false; $('v-bsn').focus(); return; }
-    if (actie === 'groep-erbij') {
-      var groepen = groepenUitScherm();
-      groepen.push({ postcodes: '', moa: inst.standaard_moa, bezorgkosten: inst.standaard_bezorgkosten,
-        gratisVanaf: inst.standaard_gratis_vanaf });
-      $('groepen').innerHTML = groepen.map(function (g, i) { return groepHtml(g, i, false); }).join('');
+    if (actie === 'afstanden') { planAfstanden(true); return; }
+    if (actie === 'testgegevens') {
+      var herstel = bezig(knop, 'Invullen…');
+      reeks.then(function () { return roep('testgegevens', [huidig.id]); }).then(function (r) {
+        herstel(); toon('Testgegevens ingevuld.'); toonDetail(r);
+      }).catch(function (err) { herstel(); toon(err.message, true); });
       return;
     }
-    if (actie === 'groep-weg') {
-      var rest = groepenUitScherm().filter(function (g, i) { return i !== Number(knop.getAttribute('data-groep')); });
-      $('groepen').innerHTML = rest.map(function (g, i) { return groepHtml(g, i, false); }).join('');
-      bewaar('bezorggebied', rest, true);
+    if (actie === 'uitzondering') {
+      var blok = $('uitzondering');
+      if (blok.hidden) { blok.hidden = false; knop.textContent = 'Uitzondering verwijderen'; $('v-openingstijden_uitzondering').focus(); return; }
+      $('v-openingstijden_uitzondering').value = '';
+      $('v-openingstijden_minimum').value = '';
+      bewaar('openingstijden_uitzondering', '', true);
+      bewaar('openingstijden_minimum', '', true);
+      blok.hidden = true;
+      knop.textContent = 'Uitzondering openingstijden';
       return;
     }
-    if (actie === 'ingevuld') return statusActie(knop, 'ingevuld', 'Controleren…', 'Ingevuld. Status: Wacht op controle.');
+    if (actie === 'wijzig-stap' || actie === 'klaar-stap') {
+      bewerkStap = actie === 'wijzig-stap' ? Number(knop.getAttribute('data-stap')) : null;
+      var id = huidig.id;
+      slaWachtendOp().then(function () { return roep('detail', [id]); }).then(function (p) {
+        var top = $('detail').scrollTop;
+        toonDetail(p);
+        $('detail').scrollTop = top;
+      }).catch(function (err) { toon(err.message, true); });
+      return;
+    }
+    if (actie === 'ingevuld') return statusActie(knop, 'ingevuld', 'Controleren…');
     if (actie === 'akkoord') {
       bevestig('Akkoord geven?', 'Daarna kunnen de gegevens niet meer worden gewijzigd. Het versturen van de overeenkomst ' +
         'volgt in fase 4.', 'Akkoord').then(function (ja) {
@@ -656,20 +951,31 @@
 
   /** Eerst wachten tot alles is opgeslagen, dan de actie. Bij fouten: per veld tonen en naar de eerste scrollen. */
   function statusActie(knop, fn, bezigTekst, klaarTekst) {
-    Object.keys(timers).forEach(function (v) { clearTimeout(timers[v]); });
     var herstel = bezig(knop, bezigTekst);
     var id = huidig.id;
-    reeks.then(function () { return roep(fn, [id]); }).then(function (r) {
+    var route = huidig.route;
+    slaWachtendOp().then(function () { return roep(fn, [id]); }).then(function (r) {
       herstel();
       if (r.fouten) {
+        if (fn === 'akkoord') {
+          // Fout in een blok dat dicht staat: dat blok openen.
+          var stap = FORMULIER_STAPPEN.map(function (s) { return s.velden.some(function (d) { return r.fouten[d.veld]; }); }).indexOf(true);
+          if (stap !== -1 && FORMULIER_STAPPEN[stap].titel !== 'Bezorggebied' && bewerkStap !== stap) {
+            bewerkStap = stap;
+            toonControle(huidig);
+          }
+          toonControleFouten(r.fouten);
+        }
         Object.keys(r.fouten).forEach(function (v) { zetStatus(v, r.fouten[v], 'fout'); });
-        toonControleFouten(fn === 'akkoord' ? r.fouten : null);
-        var eerste = document.querySelector('.veld-status.fout');
+        var eerste = document.querySelector('#detailInhoud .veld-status.fout');
         if (eerste) eerste.closest('.veld').scrollIntoView({ behavior: 'smooth', block: 'center' });
         toon('Nog niet alles is goed ingevuld.', true);
         return;
       }
-      toon(klaarTekst);
+      huidig = r;
+      if (fn === 'ingevuld' && route === 'samen') { toonAfronden(); return; }
+      toon(klaarTekst || 'Ingevuld. Status: Wacht op controle.');
+      bewerkStap = null;
       toonDetail(r);
       $('detail').scrollTop = 0;
     }).catch(function (err) { herstel(); toon(err.message, true); });

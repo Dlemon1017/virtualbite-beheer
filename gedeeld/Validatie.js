@@ -63,13 +63,29 @@ function normaliseerPostcode(pc) {
   return m[1] + ' ' + letters;
 }
 
-/** Telefoonnummer: Nederlands (10 cijfers) of internationaal; geeft opgeschoond nummer of ''. */
+/**
+ * Nederlands telefoonnummer (vast of mobiel) → "0612345678" / "0201234567"; +31 en 0031 worden 0. Anders ''.
+ * Geen 0800/0900-nummers en geen buitenlandse nummers.
+ */
 function normaliseerTelefoon(tel) {
   var s = String(tel || '').replace(/[\s().-]/g, '');
-  if (/^\+\d{9,15}$/.test(s)) return s;
-  if (/^00\d{9,15}$/.test(s)) return '+' + s.slice(2);
-  if (/^0\d{9}$/.test(s)) return s;
-  return '';
+  if (/^\+31/.test(s)) s = '0' + s.slice(3);
+  else if (/^0031/.test(s)) s = '0' + s.slice(4);
+  if (s.slice(0, 2) === '00') return '';
+  if (!/^0[1-9]\d{8}$/.test(s) || /^0(800|900|90[69])/.test(s)) return '';
+  return s;
+}
+
+/** Huisnummer: 1 tot 5 cijfers, zonder voorloopnul; anders ''. */
+function normaliseerHuisnummer(nr) {
+  var s = String(nr || '').trim();
+  return /^[1-9]\d{0,4}$/.test(s) ? s : '';
+}
+
+/** Alleen cijfers (bijv. Thuisbezorgd restaurant-ID), 1 tot 12; anders ''. */
+function normaliseerCijfers(t) {
+  var s = String(t || '').replace(/\s+/g, '');
+  return /^\d{1,12}$/.test(s) ? s : '';
 }
 
 /** "1130" of "11.30" of "11:30" → "11:30"; ongeldig → ''. */
@@ -103,6 +119,34 @@ function leesTijden(waarde) {
   } catch (e) {
     return {};
   }
+}
+
+/** "11:30" → 690 (minuten na middernacht). */
+function minutenVan_(tijd) {
+  var m = /^(\d{2}):(\d{2})$/.exec(tijd);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : NaN;
+}
+
+/**
+ * Dekken de tijdvakken van een dag het minimum (bijv. "16:30-21:00")? Tijdvakken als "16:30-22:00"; een eindtijd
+ * vóór de begintijd loopt door na middernacht. Aaneensluitende of overlappende vakken tellen samen.
+ */
+function dektMinimum(vakken, minimum) {
+  var min = normaliseerTijdvak(minimum);
+  if (!min) return false;
+  var mv = min.split('-').map(minutenVan_);
+  if (mv[1] <= mv[0]) mv[1] += 1440;
+  var stukken = (vakken || []).map(normaliseerTijdvak).filter(Boolean).map(function (v) {
+    var t = v.split('-').map(minutenVan_);
+    if (t[1] <= t[0]) t[1] += 1440;
+    return t;
+  }).sort(function (a, b) { return a[0] - b[0]; });
+  var tot = mv[0];
+  for (var i = 0; i < stukken.length && tot < mv[1]; i++) {
+    if (stukken[i][0] > tot) break;
+    tot = Math.max(tot, stukken[i][1]);
+  }
+  return tot >= mv[1];
 }
 
 /** "dd-mm-jjjj" of "jjjj-mm-dd" (date-input) → Date; ongeldig → null. */
