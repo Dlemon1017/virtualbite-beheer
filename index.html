@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://script.google.com https://script.googleusercontent.com; base-uri 'none'; form-action 'none'">
+<meta name="color-scheme" content="light dark">
+<title>Virtualbite contracttool – beheer</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="stijl.css?v=1790996727">
+</head>
+<body>
+<section id="login" hidden>
+  <p class="merk">Virtualbite</p>
+  <h1>Contracttool</h1>
+  <form id="loginEmail" novalidate>
+    <p>Log in met je e-mailadres. Je krijgt een code van 6 cijfers per mail.</p>
+    <label for="l-email">E-mailadres</label>
+    <input id="l-email" type="email" inputmode="email" autocomplete="email" autocapitalize="off">
+    <div class="fout" id="l-email-fout"></div>
+    <button type="submit" class="knop" id="l-stuur">Stuur code</button>
+  </form>
+  <form id="loginCode" novalidate hidden>
+    <p id="l-uitleg"></p>
+    <label for="l-code">Code</label>
+    <input id="l-code" class="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6">
+    <div class="fout" id="l-code-fout"></div>
+    <button type="submit" class="knop" id="l-inloggen">Inloggen</button>
+    <button type="button" class="knop licht" id="l-opnieuw">Ander adres of nieuwe code</button>
+  </form>
+</section>
+
+<main id="app" hidden>
+  <div class="kopbalk">
+    <div><p class="merk">Virtualbite</p><h1>Contracttool</h1></div>
+    <div class="gebruiker"><div id="gebruiker"></div><button class="tekst-knop" id="uitloggen">Uitloggen</button></div>
+  </div>
+  <p class="sub" id="telling">Laden…</p>
+  <div class="test" id="testbalk" hidden>Testmodus staat aan: alle mails gaan naar het testadres.</div>
+
+  <button class="knop" id="nieuwKnop">Nieuwe partner</button>
+
+  <form class="kaart" id="nieuw" hidden novalidate>
+    <h2>Nieuwe partner</h2>
+    <label for="n-naam">Naam</label>
+    <input id="n-naam" autocomplete="off" autocapitalize="words">
+    <div class="fout" data-fout="naam"></div>
+
+    <label for="n-email">E-mail partner</label>
+    <input id="n-email" type="email" inputmode="email" autocomplete="off" autocapitalize="off">
+    <div class="fout" data-fout="email"></div>
+
+    <label for="n-stad">Stad (vestigingsnaam)</label>
+    <input id="n-stad" autocomplete="off" autocapitalize="words">
+    <div class="klein">Komt in het onderwerp van de aanmelding bij Thuisbezorgd en in het voorstel hieronder.</div>
+    <div class="fout" data-fout="stad"></div>
+
+    <label for="n-cf">Customer-facing e-mailadres</label>
+    <input id="n-cf" type="email" inputmode="email" autocomplete="off" autocapitalize="off">
+    <div class="klein">Voorstel uit de stad; aanpasbaar, bijv. amsterdam-oost@chickito.nl. Moet uniek zijn.</div>
+    <div class="fout" data-fout="customer_facing_email"></div>
+
+    <label>Hoe wordt het formulier ingevuld?</label>
+    <div class="keuze" id="n-route">
+      <button type="button" data-waarde="samen" aria-pressed="false">Samen invullen</button>
+      <button type="button" data-waarde="zelf" aria-pressed="false">Partner vult zelf in</button>
+    </div>
+    <div class="fout" data-fout="route"></div>
+
+    <div class="rij-knoppen">
+      <button type="button" class="knop licht" id="n-annuleer">Annuleer</button>
+      <button type="submit" class="knop" id="n-maak">Aanmaken</button>
+    </div>
+  </form>
+
+  <div class="kaart lijst" id="lijst"></div>
+</main>
+
+<section id="detail" aria-hidden="true">
+  <main id="detailInhoud"></main>
+</section>
+
+<div id="uitleg" role="tooltip" hidden></div>
+<div id="melding" role="status"></div>
+
+<script src="config.js?v=1790996727"></script>
+<script src="gedeeld/Validatie.js?v=1790996727"></script>
+<script src="gedeeld/Berekening.js?v=1790996727"></script>
+<script src="gedeeld/Postcodes.js?v=1790996727"></script>
+<script src="gedeeld/Velden.js?v=1790996727"></script>
+<script src="gedeeld/CustomerFacing.js?v=1790996727"></script>
+<script src="app.js?v=1790996727"></script>
+</body>
+</html>
