@@ -168,7 +168,7 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .rij-melding { margin-top: 8px; font-size: 13px; }
 .grens-tekst { color: var(--geel); margin-top: 6px; }
 .afstanden { color: var(--zacht); font-variant-numeric: tabular-nums; }
-.afstanden .ver { color: var(--rood); font-weight: 600; }
+.afstanden .ver { color: var(--geel); font-weight: 600; } /* aandachtspunt, geen fout */
 .kaart-kop { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 .kaart-kop h2 { margin-bottom: 12px; }
 .beheerdeel summary { cursor: pointer; font-weight: 600; color: var(--zacht); }

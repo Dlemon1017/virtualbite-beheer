@@ -196,7 +196,7 @@
       $('lijst').innerHTML = o.partners.length ? o.partners.map(function (p) {
         return '<button class="item' + (p.status === 'Geannuleerd' ? ' uit' : '') + '" data-id="' + esc(p.id) + '">' +
           '<div class="wie"><div class="naam">' + esc(p.naam || p.id) + '</div>' +
-          '<div class="wanneer">' + esc([p.stad, p.customer_facing_email].filter(Boolean).join(' · ')) + '</div></div>' +
+          '<div class="wanneer">' + esc([p.id, p.stad, p.customer_facing_email].filter(Boolean).join(' · ')) + '</div></div>' +
           badge(p.status) + '</button>';
       }).join('') : '<div class="leeg">Nog geen partners. Maak er een aan met "Nieuwe partner".</div>';
     }).catch(function (e) {
@@ -684,7 +684,7 @@
         (uit ? ' disabled' : '') + '>' + (extra || '') + '<div class="veld-status" data-status="' + v + '"></div></div>';
     };
     var mail = ' type="email" inputmode="email" autocapitalize="off"';
-    return veld('naam_start', 'Naam') + veld('email', 'E-mail partner', mail) + veld('stad', 'Stad (vestigingsnaam)') +
+    return veld('naam_start', 'Naam bij aanmaken (intern)') + veld('email', 'E-mail partner', mail) + veld('stad', 'Stad (vestigingsnaam)') +
       (zonderCf ? '' : veld('customer_facing_email', 'Customer-facing e-mailadres', mail,
         '<div class="klein">Moet uniek zijn over alle partners.</div>')) +
       veld('email_doorsturen', 'Eigen mailadres voor doorsturen', mail, '<div class="klein">Hierheen wordt ' +
@@ -728,6 +728,9 @@
         (open ? stapVelden(stap, p, false) : samenvatting(stap, p)) + '</section>';
     });
     if (!uit) h += '<div class="acties"><button class="knop hoofd" data-actie="akkoord">Akkoord</button></div>';
+    if (p.status === 'Te tekenen' && !p.getekend_op) {
+      h += '<div class="acties"><button class="knop licht" data-actie="terug-controle">Terug naar controle</button></div>';
+    }
     $('detailInhoud').innerHTML = h;
     werkZichtbaarheidBij();
     toonMarkering(p.markering, true);
@@ -746,7 +749,9 @@
     return veld('fee_percentage', 'Fee-percentage', '<input id="v-fee_percentage" data-veld="fee_percentage" inputmode="decimal" value="' +
         esc(String(p.fee_percentage == null ? '' : p.fee_percentage).replace('.', ',')) + '" placeholder="Bijv. 9"' + dis + '>',
         '<div class="voorbeeld" id="voorbeeld"></div>') +
-      veld('startdatum', 'Startdatum', '<input id="v-startdatum" data-veld="startdatum" type="date" value="' + esc(p.startdatum) + '"' + dis + '>') +
+      // Leeg: tekstveld met "Kies een datum" (een leeg datumveld toont in Safari de datum van vandaag in grijs).
+      veld('startdatum', 'Startdatum', '<input id="v-startdatum" data-veld="startdatum" data-datum type="' +
+        (p.startdatum ? 'date' : 'text') + '" placeholder="Kies een datum" value="' + esc(p.startdatum) + '"' + dis + '>') +
       veld('customer_facing_email', 'Customer-facing e-mailadres', '<input id="v-customer_facing_email" data-veld="customer_facing_email" ' +
         'type="email" inputmode="email" autocapitalize="off" value="' + esc(p.customer_facing_email) + '"' + dis + '>',
         '<div class="klein">Moet uniek zijn over alle partners.</div>') +
@@ -1046,6 +1051,17 @@
   }
 
   var detail = $('detailInhoud');
+  detail.addEventListener('focusin', function (e) {
+    var el = e.target;
+    if (el.hasAttribute('data-datum') && el.type === 'text') {
+      el.type = 'date';
+      if (typeof el.showPicker === 'function') { try { el.showPicker(); } catch (x) { /* niet overal toegestaan */ } }
+    }
+  });
+  detail.addEventListener('focusout', function (e) {
+    var el = e.target;
+    if (el.hasAttribute('data-datum') && !el.value) el.type = 'text';
+  });
   ['input', 'change', 'click'].forEach(function (t) {
     detail.addEventListener(t, function () { setTimeout(werkKnoppenBij, 0); });
   });
@@ -1143,6 +1159,13 @@
     }
     if (actie === 'wijzig-bsn') { $('bsn-tonen').hidden = true; $('v-bsn').hidden = false; $('v-bsn').focus(); return; }
     if (actie === 'afstanden') { planAfstanden(true); return; }
+    if (actie === 'terug-controle') {
+      bevestig('Terug naar controle?', 'De status gaat terug naar "Wacht op controle" en je kunt alles weer aanpassen. ' +
+        'Daarna geef je opnieuw akkoord.', 'Terug naar controle').then(function (ja) {
+        if (ja) statusActie(knop, 'terugNaarControle', 'Bezig…', 'Terug naar controle. Status: Wacht op controle.');
+      });
+      return;
+    }
     if (actie === 'beheermenu') {
       var menu = $('beheerMenu');
       menu.hidden = !menu.hidden;
