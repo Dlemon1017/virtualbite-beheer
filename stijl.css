@@ -180,3 +180,4 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .pc-regel label { margin-top: 10px; }
 .pc-regel:first-child label { margin-top: 6px; }
 .tijden { margin-top: 6px; }
+.grens-uitleg { color: var(--geel); font-size: 13px; margin-top: 10px; }

@@ -200,9 +200,28 @@ function standaardBedragenTekst(inst, grensKm) {
     ', gratis bezorging vanaf ' + formatBedrag(leesBedrag(inst.standaard_gratis_vanaf), true) + '.';
 }
 
-/** Melding voor de partner per postcode boven de grens (zonder te zeggen hoe de afstand is berekend). */
-function grensTekst(grensKm, postcode) {
-  return (postcode ? postcode : 'Deze postcode') + ' ligt meer dan ' + String(grensKm).replace('.', ',') + ' km rijden ' +
-    'van je zaak. Voor zulke afstanden spreken we aangepaste bedragen af, zoals een hoger minimum en hogere ' +
-    'bezorgkosten, zodat elke rit de moeite waard is. Geen zorgen: we stemmen samen bedragen af die voor jou goed uitpakken.';
+function kmTekst_(grensKm) {
+  return String(grensKm).replace('.', ',');
+}
+
+/** "a, b en c" */
+function opsomming_(lijst) {
+  return lijst.length < 2 ? String(lijst[0] || '') : lijst.slice(0, -1).join(', ') + ' en ' + lijst[lijst.length - 1];
+}
+
+/**
+ * Eén korte regel per postcoderegel voor de partner, bijv. "⚠ 8218, 8219 en 8226 liggen meer dan 6 km rijden van je
+ * zaak." ('' als er geen postcode boven de grens ligt). Zegt niet hoe de afstand is berekend.
+ */
+function grensRegel(postcodes, grensKm) {
+  if (!postcodes.length) return '';
+  return '⚠ ' + opsomming_(postcodes) + (postcodes.length === 1 ? ' ligt' : ' liggen') + ' meer dan ' + kmTekst_(grensKm) +
+    ' km rijden van je zaak.';
+}
+
+/** Uitleg één keer onder alle postcoderegels (alleen als er minstens één postcode boven de grens ligt). */
+function grensUitleg(grensKm) {
+  return 'Voor postcodes verder dan ' + kmTekst_(grensKm) + ' km spreken we aangepaste bedragen af, zoals een hoger ' +
+    'minimum en hogere bezorgkosten, zodat elke rit de moeite waard is. Geen zorgen: we stemmen samen bedragen af die ' +
+    'voor jou goed uitpakken.';
 }

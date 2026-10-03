@@ -446,7 +446,8 @@
     var n = Math.min(MAX_POSTCODEREGELS, Math.max(3, regels.length));
     var h = '<div class="klein">' + esc(standaardBedragenTekst(inst, inst.grens_km || 6)) + '</div><div id="pc-regels">';
     for (var i = 0; i < n; i++) h += postcodeRegelHtml(i, regels[i] || '', uit);
-    return h + '</div>' + (uit ? '' : '<button type="button" class="klein-knop mt" data-actie="pc-erbij"' +
+    return h + '</div><div class="grens-uitleg" id="pc-uitleg" hidden></div>' +
+      (uit ? '' : '<button type="button" class="klein-knop mt" data-actie="pc-erbij"' +
       (n >= MAX_POSTCODEREGELS ? ' hidden' : '') + '>+ Postcode toevoegen</button>');
   }
 
@@ -569,13 +570,17 @@
   /** Markering per rij: voor de partner alleen de grenstekst; in het controlescherm ook km per postcode. */
   function toonMarkering(m, beheer) {
     if (!m) return;
+    var ergensVer = false;
     document.querySelectorAll('[data-pcregel]').forEach(function (inp) {
       var i = inp.getAttribute('data-pcregel');
       var el = document.querySelector('[data-pcregel-melding="' + i + '"]');
       var hier = leesPostcodes(inp.value).postcodes.filter(function (pc) { return (m.boven || []).indexOf(pc) !== -1; });
-      el.innerHTML = hier.map(function (pc) { return '<div class="grens-tekst">' + esc(grensTekst(m.grens_km, pc)) + '</div>'; }).join('');
+      el.innerHTML = hier.length ? '<div class="grens-tekst">' + esc(grensRegel(hier, m.grens_km)) + '</div>' : '';
       el.hidden = !hier.length;
+      ergensVer = ergensVer || hier.length > 0;
     });
+    var uitleg = $('pc-uitleg');
+    if (uitleg) { uitleg.textContent = ergensVer ? grensUitleg(m.grens_km) : ''; uitleg.hidden = !ergensVer; }
     (m.rijen || []).forEach(function (r, i) {
       var el = document.querySelector('[data-rij-melding="' + i + '"]');
       var blok = document.querySelector('[data-bezorgrij="' + i + '"]');
@@ -743,7 +748,7 @@
           return DAGNAMEN[dag] + ' ' + t[dag].filter(Boolean).join(', ');
         }).join(' · ');
       } else w = p[d.veld];
-      if (d.veld === 'btw_id' && p.btw_vies) w += ' (VIES: ' + p.btw_vies + ')';
+      if (d.veld === 'btw_id' && p.btw_vies) w += ' (' + p.btw_vies + ')';
       regels.push([d.label, w]);
     });
     return '<dl>' + regels.map(function (r) {
