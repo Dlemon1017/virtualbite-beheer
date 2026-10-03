@@ -15,10 +15,13 @@ function pdokUrl(postcode, huisnummer) {
     '&fl=straatnaam,woonplaatsnaam,huisletter,huisnummertoevoeging,centroide_ll&rows=50';
 }
 
-/** Alle 6-cijferige postcodes binnen een 4-cijferig gebied (voor het middelpunt). */
-function pdokPc4Url(pc4) {
+/** PDOK geeft maximaal 100 resultaten per aanvraag; meer ophalen gaat per pagina (start). */
+var PDOK_MAX_ROWS = 100;
+
+/** De 6-cijferige postcodes binnen een 4-cijferig gebied (voor het middelpunt), pagina vanaf `start`. */
+function pdokPc4Url(pc4, start) {
   return /^[1-9]\d{3}$/.test(String(pc4)) ? PDOK_ZOEK_URL + '?q=*&fq=type:postcode&fq=postcode:' + pc4 +
-    '*&fl=centroide_ll&rows=1000' : '';
+    '*&fl=centroide_ll&rows=' + PDOK_MAX_ROWS + '&start=' + (Number(start) || 0) : '';
 }
 
 function adresSleutel_(t) {

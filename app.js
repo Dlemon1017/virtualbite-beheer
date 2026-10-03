@@ -93,8 +93,11 @@
     });
   }
 
-  /** Alleen-lezen aanroepen mogen bij een storing nog één keer opnieuw. */
-  var ALLEEN_LEZEN = ['overzicht', 'detail'];
+  /**
+   * Bij een storing (foutpagina van Google) nog één keer: alleen-lezen aanroepen en aanroepen die je veilig kunt
+   * herhalen (een veld op een waarde zetten, het btw-nummer controleren).
+   */
+  var ALLEEN_LEZEN = ['overzicht', 'detail', 'bewaar', 'controleerBtw', 'afstanden'];
   function roep(fn, args) {
     if (!sessie) { toonLogin(); return Promise.reject(new Error('Niet ingelogd.')); }
     var verzoek = { actie: 'beheer', sessie: sessie.sessie, functie: fn, args: args || [] };
@@ -778,7 +781,7 @@
           var melding = r.fout_extern || r.waarschuwing;
           zetStatus(veld, melding || r.info || 'Opgeslagen', melding ? 'fout' : 'ok');
           if (veld === 'bsn') toonBsnOpgeslagen(r.waarde);
-          if (veld === 'btw_id') huidig.btw_vies = r.info ? r.info.replace(/^VIES: /, '') : huidig.btw_vies;
+          if (veld === 'btw_id') { huidig.btw_vies = ''; if (r.waarde) controleerBtw(id); }
           if (veld === 'customer_facing_email' || veld === 'email_doorsturen') {
             var el = document.querySelector('[data-veld="' + veld + '"]');
             if (el && document.activeElement !== el) el.value = r.waarde;
@@ -789,6 +792,21 @@
     };
     if (direct) doe(); else { wachtend[veld] = doe; timers[veld] = setTimeout(doe, 900); }
   }
+
+  /** VIES-controle (los van het opslaan). Een storing blokkeert niet: nette melding, later opnieuw. */
+  function controleerBtw(id) {
+    zetStatus('btw_id', 'Opgeslagen · controleren bij de EU…');
+    roep('controleerBtw', [id]).then(function (r) {
+      if (!huidig || huidig.id !== id) return;
+      if (r.btw_vies !== undefined) huidig.btw_vies = r.btw_vies;
+      zetStatus('btw_id', r.fout || r.waarschuwing || r.info || 'Opgeslagen', r.fout || r.waarschuwing ? 'fout' : 'ok');
+    }).catch(function () {
+      zetStatus('btw_id', 'BTW-nummer kon nu niet bij de EU worden gecontroleerd; we proberen het later opnieuw.', 'fout');
+    });
+  }
+
+  var btwTimer = null;
+  var BTW_FORMAAT = 'Vul het btw-id in als NL123456789B01 (NL, 9 cijfers, B, 2 cijfers).';
 
   function toonBsnOpgeslagen(gemaskeerd) {
     huidig.heeft_bsn = !!gemaskeerd;
@@ -854,6 +872,19 @@
     if (el.hasAttribute('data-veld')) {
       var veld = el.getAttribute('data-veld');
       if (veld === 'fee_percentage') werkVoorbeeldBij();
+      if (veld === 'btw_id') { // alleen opslaan en controleren als het formaat klopt; anders na een pauze een melding
+        clearTimeout(btwTimer);
+        clearTimeout(timers.btw_id);
+        delete wachtend.btw_id;
+        var btw = el.value.trim();
+        if (btw && !normaliseerBtwId(btw)) {
+          btwTimer = setTimeout(function () { zetStatus('btw_id', BTW_FORMAAT, 'fout'); }, 900);
+          return;
+        }
+        zetStatus('btw_id', '');
+        bewaar('btw_id', btw);
+        return;
+      }
       controleerDirect(veld, el.value);
       planAdres(veld);
       if (veld === 'bsn' && el.value.replace(/\D/g, '').length < 9) return; // pas bewaren als het compleet is
@@ -875,6 +906,12 @@
       bewaar(v, huidig[v], true);
     } else if (el.hasAttribute('data-veld')) {
       var veld = el.getAttribute('data-veld');
+      if (veld === 'btw_id' && el.value.trim() && !normaliseerBtwId(el.value)) { // geen serveraanroep
+        clearTimeout(btwTimer);
+        zetStatus('btw_id', BTW_FORMAAT, 'fout');
+        return;
+      }
+      if (veld === 'btw_id' && !wachtend.btw_id) return; // al opgeslagen (en gecontroleerd) tijdens het typen
       if (controleerDirect(veld, el.value, true)) bewaar(veld, el.value, true);
       else bewaar(veld, el.value, true); // half ingevuld toch bewaren; melding blijft staan
     } else if (el.closest('[data-tijden]')) {
