@@ -586,8 +586,7 @@
           p.kanaal === 'whatsapp' ? 'Je krijgt een melding om de tekenlink via WhatsApp te sturen.' :
           'De tekenlink wordt automatisch per mail verstuurd zodra de stukken klaar zijn.')],
       'Getekend': ['info', 'Getekend' + (p.getekend_op ? ' op ' + p.getekend_op : '') + (p.teken_naam ? ' door ' + p.teken_naam +
-        (p.teken_functie ? ' (' + p.teken_functie + ')' : '') : '') + '. Verwerken (PDF\'s met handtekening, mails, ' +
-        'TB-aanmelding) volgt in fase 4d.'],
+        (p.teken_functie ? ' (' + p.teken_functie + ')' : '') : '') + '. Alles daarna gaat automatisch (kaart "Getekend").'],
       'Geannuleerd': ['let', 'Deze partner is geannuleerd' + (p.geannuleerd_op ? ' op ' + p.geannuleerd_op : '') + '.']
     }[p.status];
     return t ? '<div class="melding-blok mb-' + t[0] + '">' + esc(t[1]) + '</div>' : '';
@@ -604,7 +603,25 @@
   // ---------- Kaart "Overeenkomst" (status Te tekenen; fase 4b) ----------
   var verversTimer = null;
 
+  /** Kaart "Getekend": wat er na tekenen automatisch is gedaan, met links naar de stukken. */
+  function getekendKaartHtml(p) {
+    var v = p.verwerkt || {};
+    var stappen = [['pdf', 'Getekende overeenkomst (PDF)'], ['tb', 'TB-formulier met handtekening'], ['mail', 'Mail aan partner (cc jou)'],
+      ['tbmail', 'Aanmelding Thuisbezorgd'], ['koppel', 'Customer-facing mail'], ['melding', 'Melding aan jou']];
+    var stand = function (x) {
+      return x === 'ok' ? '✓' : x === 'nvt' ? 'n.v.t.' : x === 'fout' ? 'mislukt (wordt dagelijks opnieuw geprobeerd)' : 'bezig…';
+    };
+    var link = function (url, tekst) { return url ? '<a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(tekst) + '</a>' : ''; };
+    var s = p.stukken || {};
+    return '<section class="kaart" id="tekenKaart"><h2>Getekend</h2><dl>' +
+      stappen.map(function (x) { return '<div><dt>' + esc(x[1]) + '</dt><dd>' + esc(stand(v[x[0]])) + '</dd></div>'; }).join('') +
+      '<div><dt>Stukken</dt><dd>' + [link(s.overeenkomst, 'Overeenkomst (getekend)'), link(s.tb, 'TB-formulier (getekend)'),
+        link(s.zwh, 'Zo werkt het'), link(s.av, 'Algemene Partnervoorwaarden'), link(s.map, 'Map in Drive')].filter(Boolean).join('<br>') +
+      '</dd></div></dl></section>';
+  }
+
   function tekenKaartHtml(p) {
+    if (p.status === 'Getekend') return getekendKaartHtml(p);
     if (p.status !== 'Te tekenen') return '';
     var regel = function (label, waarde, html) {
       return '<div><dt>' + esc(label) + '</dt><dd>' + (html ? waarde : esc(waarde)) + '</dd></div>';
@@ -650,8 +667,10 @@
   function planVerversen(p) {
     clearTimeout(verversTimer);
     if (verversId !== p.id) { verversId = p.id; verversRondes = 0; }
-    var wacht = p.status === 'Te tekenen' && !p.getekend_op &&
-      (p.contract_status === 'maken' || (p.contract_status === 'klaar' && !p.teken_verstuurd_op));
+    var v = p.verwerkt || {};
+    var bezig = p.status === 'Getekend' && ['pdf', 'tb', 'mail', 'tbmail', 'koppel', 'melding'].some(function (s) { return !v[s]; });
+    var wacht = bezig || (p.status === 'Te tekenen' && !p.getekend_op &&
+      (p.contract_status === 'maken' || (p.contract_status === 'klaar' && !p.teken_verstuurd_op)));
     if (!wacht) { verversRondes = 0; return; }
     if (++verversRondes > 30) return;
     verversTimer = setTimeout(function () {

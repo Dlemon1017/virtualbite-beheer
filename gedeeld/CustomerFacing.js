@@ -31,11 +31,15 @@ function cfUniekFout(adres, partners, eigenId) {
 }
 
 /**
- * Stap na "Akkoord": stad@chickito.nl laten doorsturen naar het eigen adres van de partner (`email_doorsturen`).
- * Nog niet gekoppeld: dat gebeurt nu met het project chickito-partnermail (zie CLAUDE.md, open punten).
- * Geeft nooit een fout, zodat "Akkoord" altijd doorgaat.
+ * Stap na **Getekend** (fase 4d): stad@chickito.nl laten doorsturen naar het eigen adres van de partner
+ * (`email_doorsturen`). Instelling cf_koppelen: "proef" (standaard) logt alleen wat er zou gebeuren; "aan" volgt in fase
+ * 4h (Google Groups via de Admin SDK, zie CLAUDE.md); "uit" doet niets. Nooit adressen van de partner in Log.
  */
 function koppelCustomerFacingMail(partner) {
-  schrijfLog(partner && partner.id, 'customer-facing e-mail', 'nog niet gekoppeld (handmatig via chickito-partnermail)');
-  return { gekoppeld: false };
+  var stand = cfKoppelen_();
+  var cf = String(partner && partner.customer_facing_email || '');
+  if (stand === 'uit') { schrijfLog(partner && partner.id, 'customer-facing e-mail', 'koppelen staat uit'); return { gekoppeld: false }; }
+  schrijfLog(partner && partner.id, 'customer-facing e-mail', (stand === 'aan' ? 'aan (nog niet gebouwd, fase 4h): ' : 'proef: ') +
+    'groep ' + cf + ' zou worden aangemaakt met 2 leden (eigen adres partner, info@chickito.nl)');
+  return { gekoppeld: false, proef: true };
 }
