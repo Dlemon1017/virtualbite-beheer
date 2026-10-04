@@ -192,6 +192,7 @@
   function laad() {
     return roep('overzicht').then(function (o) {
       inst = o.instellingen || inst;
+      zetOpeningsMinimum(inst.openings_minimum);
       $('testbalk').hidden = !o.testmodus;
       $('n-test').hidden = !o.testmodus;
       vulMerken(o.merken);
@@ -567,19 +568,35 @@
       veld('customer_facing_email', 'Customer-facing e-mailadres', '<input id="v-customer_facing_email" data-veld="customer_facing_email" ' +
         'type="email" inputmode="email" autocapitalize="off" value="' + esc(p.customer_facing_email) + '"' + dis + '>',
         '<div class="klein">Moet uniek zijn over alle partners.</div>') +
-      '<div class="veld"><div class="label">Openingstijden</div><div class="klein">Minimaal ' + esc(OPENINGS_MINIMUM) +
+      merkenVelden(p, uit) +
+      '<div class="veld"><div class="label">Openingstijden</div><div class="klein">Minimaal ' + esc(openingsMinimum()) +
         ' op vrijdag, zaterdag, zondag en minimaal 2 andere dagen.</div>' +
         '<div id="uitzondering"' + (heeftUitzondering ? '' : ' hidden') + '>' +
         veld('openingstijden_uitzondering', 'Reden uitzondering', '<input id="v-openingstijden_uitzondering" ' +
           'data-veld="openingstijden_uitzondering" value="' + esc(p.openingstijden_uitzondering) + '" placeholder="Bijv. de zaak sluit om 20:00"' + dis + '>') +
         veld('openingstijden_minimum', 'Afwijkende minimale tijd', '<input id="v-openingstijden_minimum" data-veld="openingstijden_minimum" ' +
-          'value="' + esc(p.openingstijden_minimum) + '" placeholder="Bijv. 16:30-20:00" inputmode="numeric"' + dis + '>') + '</div>' +
+          'value="' + esc(p.openingstijden_minimum) + '" placeholder="Bijv. 17:00-20:00" inputmode="numeric"' + dis + '>') + '</div>' +
         (uit ? '' : '<button type="button" class="klein-knop mt" data-actie="uitzondering">' +
           (heeftUitzondering ? 'Uitzondering verwijderen' : 'Uitzondering openingstijden') + '</button>') + '</div>' +
       '<div class="veld" data-rij="bezorggebied"><div class="label">Bezorggebied en bedragen per rij</div>' + f.rijenHtml(p, uit) +
         '<div class="klein" id="afstandInfo" hidden></div><div class="klein afstand-status" id="afstandStatus" hidden></div>' +
         (uit ? '' : '<button type="button" class="klein-knop mt" data-actie="afstanden">Afstanden opnieuw berekenen</button>') +
         '<div class="veld-status" data-status="bezorggebied"></div></div>';
+  }
+
+  /** Andere virtuele merken (alleen Virtualbite): standaard Nee → "GEEN" in de overeenkomst; bij Ja welke merken. */
+  function merkenVelden(p, uit) {
+    var ja = p.externe_merken_ja === 'ja';
+    var dis = uit ? ' disabled' : '';
+    return '<div class="veld" data-rij="externe_merken_ja"><div class="label">Draaien er al andere virtuele merken vanuit de zaak?</div>' +
+      '<div class="keuze" data-keuze="externe_merken_ja" role="group" aria-label="Andere virtuele merken">' +
+      [['ja', 'Ja'], ['nee', 'Nee']].map(function (k) {
+        return '<button type="button" data-waarde="' + k[0] + '" aria-pressed="' + (ja === (k[0] === 'ja')) + '"' + dis + '>' + k[1] + '</button>';
+      }).join('') + '</div><div class="klein">In de overeenkomst: de merken, of "GEEN".</div>' +
+      '<div class="veld-status" data-status="externe_merken_ja"></div></div>' +
+      '<div class="veld" data-rij="externe_merken" id="merkenWelke"' + (ja ? '' : ' hidden') + '><label for="v-externe_merken">Welke merken?</label>' +
+      '<input id="v-externe_merken" data-veld="externe_merken" value="' + esc(p.externe_merken) + '" placeholder="Bijv. Burger Brothers, ' +
+      'Wok Express" autocomplete="off"' + dis + '><div class="veld-status" data-status="externe_merken"></div></div>';
   }
 
   /** Samenvatting van een stap (alleen-lezen), in de volgorde van het formulier. */
@@ -597,7 +614,7 @@
     }
   }
 
-  var EXTRA_LABELS = { fee_percentage: 'Fee-percentage', startdatum: 'Startdatum', bezorggebied: 'Bezorggebied',
+  var EXTRA_LABELS = { externe_merken: 'Welke merken', externe_merken_ja: 'Andere virtuele merken', fee_percentage: 'Fee-percentage', startdatum: 'Startdatum', bezorggebied: 'Bezorggebied',
     customer_facing_email: 'Customer-facing e-mailadres', openingstijden_minimum: 'Afwijkende minimale tijd' };
 
   function toonControleFouten(fouten, waarschuwingen) {
@@ -620,13 +637,14 @@
     var cf = $('v-customer_facing_email');
     if (!fee || isNaN(leesPercentage(fee.value)) || !start || !start.value) return false;
     if (cf && !normaliseerCfAdres(cf.value, inst.cf_domein)) return false;
+    if (huidig.externe_merken_ja === 'ja' && !String(huidig.externe_merken || '').trim()) return false;
     var c = controleerBezorggebied(f.rijenUitScherm());
     if (c.fouten.length) return false;
     var reden = $('v-openingstijden_uitzondering');
     var min = $('v-openingstijden_minimum');
     var heeftUitzondering = reden && reden.value.trim() && !$('uitzondering').hidden;
     if (heeftUitzondering && !normaliseerTijdvak(min.value)) return false;
-    return !dagenOnderMinimum(huidig.bezorgtijden, heeftUitzondering ? normaliseerTijdvak(min.value) : OPENINGS_MINIMUM).length;
+    return !dagenOnderMinimum(huidig.bezorgtijden, heeftUitzondering ? normaliseerTijdvak(min.value) : openingsMinimum()).length;
   }
 
   function werkKnoppenBij() {
@@ -638,6 +656,12 @@
 
   // ---------- Acties van de beheerpagina (velden zelf: gedeeld/formulier.js) ----------
   $('detailInhoud').addEventListener('click', function (e) {
+    var merk = e.target.closest('[data-keuze="externe_merken_ja"] button');
+    if (merk && !merk.disabled && $('merkenWelke')) { // opslaan doet gedeeld/formulier.js
+      $('merkenWelke').hidden = merk.getAttribute('data-waarde') !== 'ja';
+      if (!$('merkenWelke').hidden) $('v-externe_merken').focus();
+      return;
+    }
     var knop = e.target.closest('[data-actie]');
     if (!knop || !huidig) {
       if (knop && knop.getAttribute('data-actie') === 'terug') { sluitDetail(); laad(); }

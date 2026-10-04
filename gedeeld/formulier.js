@@ -53,7 +53,7 @@
     var u = uitlegEl();
     if (uitlegVan === knop) { sluitUitleg(); return; }
     sluitUitleg();
-    u.textContent = UITLEG[knop.getAttribute('data-uitleg')];
+    u.textContent = uitlegTekst(knop.getAttribute('data-uitleg')); // met de minimale openingstijd uit Instellingen
     u.hidden = false;
     var r = knop.getBoundingClientRect();
     var breed = u.offsetWidth;
@@ -155,11 +155,17 @@
             return '<span class="dag">' + DAGNAMEN[dag] + '</span>' + [0, 1].map(function (i) {
               var delen = String(v[i] || '').split('-');
               var naam = esc(d.label) + ' ' + DAG_NAAM[dag] + ', blok ' + (i + 1);
+              var van = delen.length === 2 ? delen[0] : '';
               return '<div class="blok" data-blok="' + i + '">' +
-                tijdKiezer(dag, i, 'van', delen.length === 2 ? delen[0] : '', di === 0, naam, dis) + '<span class="streep">–</span>' +
-                tijdKiezer(dag, i, 'tot', delen.length === 2 ? delen[1] : '', di === 0, naam, dis) + '</div>';
+                '<label class="kiezer"><span>van</span>' + tijdKiezer(dag, i, 'van', van, '', di === 0, naam, dis) + '</label>' +
+                '<span class="streep">–</span>' +
+                '<label class="kiezer"><span>tot</span>' + tijdKiezer(dag, i, 'tot', delen.length === 2 ? delen[1] : '', van, di === 0,
+                  naam, dis) + '</label></div>';
             }).join('');
-          }).join('') + '</div>';
+          }).join('') + '</div>' +
+          (uit ? '' : '<div class="knoppen-rij"><button type="button" class="klein-knop" data-actie="tijden-alle" data-vak="' +
+            esc(d.veld) + '">Zelfde tijden voor alle dagen</button>' + (d.veld === 'afhaaltijden' ? '<button type="button" ' +
+            'class="klein-knop" data-actie="tijden-als-bezorg">Zelfde als bezorgtijden</button>' : '') + '</div>');
       }
       if (d.soort === 'bsn') {
         return '<div class="bsn-rij" id="bsn-tonen"' + (p.heeft_bsn ? '' : ' hidden') + '><span class="waarde" id="bsn-waarde">' +
@@ -184,16 +190,98 @@
       }
       return uit;
     })();
-    var TIJD_VOORBEELD = [{ van: '11:30', tot: '14:00' }, { van: '16:30', tot: '21:30' }];
+    var TIJD_VOORBEELD = [{ van: '11:30', tot: '14:00' }, { van: '17:00', tot: '21:30' }];
 
-    /** Keuzelijst voor één tijd. Het voorbeeld ("Bijv. 11:30") alleen bij de eerste dag (maandag). */
-    function tijdKiezer(dag, i, kant, waarde, metVoorbeeld, naam, dis) {
-      var lijst = KWARTIEREN.indexOf(waarde) === -1 && waarde ? [waarde].concat(KWARTIEREN) : KWARTIEREN;
-      return '<select data-dag="' + dag + '" data-i="' + i + '" data-kant="' + kant + '" aria-label="' + naam + ', ' + kant + '"' +
-        (waarde ? '' : ' class="leeg"') + dis + '><option value="">' + (metVoorbeeld ? 'Bijv. ' + TIJD_VOORBEELD[i][kant] : kant) +
-        '</option>' + lijst.map(function (x) {
-          return '<option' + (x === waarde ? ' selected' : '') + '>' + x + '</option>';
-        }).join('') + '</select>';
+    /** Plaats in de dag die om 06:00 begint (01:00 komt na 23:45). */
+    function dagMinuut(t) {
+      var m = /^(\d{2}):(\d{2})$/.exec(t || '');
+      return m ? ((Number(m[1]) * 60 + Number(m[2]) - 360) % 1440 + 1440) % 1440 : -1;
+    }
+
+    /**
+     * Opties van één keuzelijst. "van": de hele lijst (06:00-05:45); de lege keuze staat vóór 16:00, zodat de lijst
+     * daar opent. "tot": alleen tijden ná "van" (door over middernacht, tot 05:45); de lege keuze bovenaan, dus de lijst
+     * opent bij de eerste tijd na "van". Zonder "van": de hele lijst, lege keuze vóór 21:00.
+     */
+    function tijdOpties(kant, waarde, van, leegTekst) {
+      var lijst = kant === 'tot' && van ? KWARTIEREN.filter(function (x) { return dagMinuut(x) > dagMinuut(van); }) : KWARTIEREN.slice();
+      if (waarde && lijst.indexOf(waarde) === -1) lijst.unshift(waarde); // oude waarde buiten de lijst: niet kwijtraken
+      var leegVoor = kant === 'tot' && van ? lijst[0] : kant === 'van' ? '16:00' : '21:00';
+      var leeg = '<option value=""' + (waarde ? '' : ' selected') + '>' + esc(leegTekst) + '</option>';
+      return lijst.map(function (x) {
+        return (x === leegVoor ? leeg : '') + '<option' + (x === waarde ? ' selected' : '') + '>' + x + '</option>';
+      }).join('') + (lijst.indexOf(leegVoor) === -1 ? leeg : '');
+    }
+
+    /** Keuzelijst voor één tijd. Het voorbeeld ("Bijv. 11:30") alleen bij de eerste dag (maandag), anders "–". */
+    function tijdKiezer(dag, i, kant, waarde, van, metVoorbeeld, naam, dis) {
+      var leegTekst = metVoorbeeld ? 'Bijv. ' + TIJD_VOORBEELD[i][kant] : '–';
+      return '<select data-dag="' + dag + '" data-i="' + i + '" data-kant="' + kant + '" data-leeg="' + esc(leegTekst) + '" aria-label="' +
+        naam + ', ' + kant + '"' + (waarde ? '' : ' class="leeg"') + dis + '>' + tijdOpties(kant, waarde, van, leegTekst) + '</select>';
+    }
+
+    /** Na een nieuwe "van": de "tot"-lijst opnieuw (alleen latere tijden); een "tot" die niet meer past, wordt leeg. */
+    function bouwTot(blok) {
+      var van = blok.querySelector('[data-kant="van"]').value;
+      var tot = blok.querySelector('[data-kant="tot"]');
+      var w = tot.value && (!van || dagMinuut(tot.value) > dagMinuut(van)) ? tot.value : '';
+      tot.innerHTML = tijdOpties('tot', w, van, tot.getAttribute('data-leeg'));
+      tot.value = w;
+      tot.classList.toggle('leeg', !w);
+    }
+
+    /** Eén blok vullen ("17:00-21:30" of ''). */
+    function zetBlok(blok, tijdvak) {
+      var delen = String(tijdvak || '').split('-');
+      var van = blok.querySelector('[data-kant="van"]');
+      var w = delen.length === 2 ? delen[0] : '';
+      van.innerHTML = tijdOpties('van', w, '', van.getAttribute('data-leeg'));
+      van.value = w;
+      van.classList.toggle('leeg', !w);
+      var tot = blok.querySelector('[data-kant="tot"]');
+      tot.innerHTML = tijdOpties('tot', delen.length === 2 ? delen[1] : '', w, tot.getAttribute('data-leeg'));
+      tot.value = delen.length === 2 ? delen[1] : '';
+      tot.classList.toggle('leeg', !tot.value);
+    }
+
+    function blokkenVanDag(vak, dag) {
+      return Array.prototype.filter.call(qa('[data-tijden="' + vak + '"] .blok'), function (b) {
+        return b.querySelector('[data-dag="' + dag + '"]');
+      });
+    }
+
+    /** Na kopiëren: opslaan en een oude melding weg. */
+    function tijdenGewijzigd(vak) {
+      zetStatus(vak, '');
+      f.huidig[vak] = tijdenUitScherm(vak);
+      bewaar(vak, tijdenUitScherm(vak), true);
+    }
+
+    /** "Zelfde tijden voor alle dagen": de eerst ingevulde dag naar alle lege dagen (daarna per dag aan te passen). */
+    function zelfdeVoorAlleDagen(vak) {
+      var t = tijdenUitScherm(vak);
+      var bron = DAGEN.filter(function (dag) { return (t[dag] || []).some(Boolean); })[0];
+      if (!bron) { if (cfg.melding) cfg.melding('Vul eerst de tijden van één dag in.', true); return; }
+      DAGEN.forEach(function (dag) {
+        var blokken = blokkenVanDag(vak, dag);
+        var leeg = !blokken.some(function (b) { return Array.prototype.some.call(b.querySelectorAll('select'), function (s) { return s.value; }); });
+        if (dag === bron || !leeg) return;
+        blokken.forEach(function (b, i) { zetBlok(b, t[bron][i]); });
+      });
+      tijdenGewijzigd(vak);
+    }
+
+    /** "Zelfde als bezorgtijden": afhaaltijden = bezorgtijden (alle dagen). */
+    function afhaalAlsBezorg() {
+      var bezorg = q('[data-tijden="bezorgtijden"]') ? tijdenUitScherm('bezorgtijden') : leesTijden(f.huidig.bezorgtijden);
+      if (!DAGEN.some(function (dag) { return (bezorg[dag] || []).some(Boolean); })) {
+        if (cfg.melding) cfg.melding('Vul eerst de bezorgtijden in.', true);
+        return;
+      }
+      DAGEN.forEach(function (dag) {
+        blokkenVanDag('afhaaltijden', dag).forEach(function (b, i) { zetBlok(b, (bezorg[dag] || [])[i]); });
+      });
+      tijdenGewijzigd('afhaaltijden');
     }
 
     // Postcoderegels (partner): max. 5, elk één postcode of reeks.
@@ -747,6 +835,7 @@
       } else if (el.closest('[data-tijden]')) {
         var vak = el.closest('[data-tijden]').getAttribute('data-tijden');
         el.classList.toggle('leeg', !el.value);
+        if (el.getAttribute('data-kant') === 'van') bouwTot(el.closest('.blok'));
         var st = q('[data-status="' + vak + '"]');
         if (st && st.classList.contains('fout') && !f.halveTijden(vak)) zetStatus(vak, ''); // melding weg als het nu klopt
         f.huidig[vak] = tijdenUitScherm(vak);
@@ -783,6 +872,10 @@
         $('bsn-tonen').hidden = true; $('v-bsn').hidden = false; $('v-bsn').focus();
       } else if (actie === 'afstanden') {
         f.planAfstanden(true);
+      } else if (actie === 'tijden-alle') {
+        zelfdeVoorAlleDagen(knop.getAttribute('data-vak'));
+      } else if (actie === 'tijden-als-bezorg') {
+        afhaalAlsBezorg();
       } else if (actie === 'pc-erbij') {
         var aantal = qa('[data-pcregel]').length;
         if (aantal < MAX_POSTCODEREGELS) {

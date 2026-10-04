@@ -36,9 +36,10 @@ var UITLEG = {
   koppeling: 'Hoe de bestellingen van Thuisbezorgd bij jou binnenkomen. Terminal: een apparaat van Thuisbezorgd ' +
     '(€ 250 eenmalig en € 2,50 per week). POS-API: de bestellingen komen rechtstreeks in je kassasysteem. Twijfel je? ' +
     'Kies \'Other\', dan zoeken we het samen uit.',
+  // {min_van}/{min_tot}: minimale openingstijd uit Instellingen (uitlegTekst).
   tijden: 'Per dag kun je twee tijdvakken invullen, bijvoorbeeld een middagblok (11:30-14:00) en een avondblok ' +
-    '(16:30-21:30). Laat een dag leeg als je dan gesloten bent. Volgens de overeenkomst ben je minimaal vijf dagen per ' +
-    'week in ieder geval van 16:30 tot 21:00 open.',
+    '(17:00-21:30). Laat een dag leeg als je dan gesloten bent. Volgens de overeenkomst ben je op vrijdag, zaterdag, ' +
+    'zondag en minimaal 2 andere dagen in ieder geval van {min_van} tot {min_tot} open.',
   postcodes_gewenst: 'De postcodes (4 cijfers) waar je wilt bezorgen. Reeksen mogen, bijvoorbeeld "1091-1099". ' +
     'Virtualbite beoordeelt je wens en bevestigt het definitieve gebied; dat wordt je exclusieve gebied in de ' +
     'overeenkomst.'
@@ -46,8 +47,37 @@ var UITLEG = {
 UITLEG.afhaaltijden = UITLEG.tijden;
 UITLEG.bezorgtijden = UITLEG.tijden;
 
-/** Minimale openingstijd volgens de overeenkomst (vrijdag, zaterdag, zondag + 2 andere dagen). */
-var OPENINGS_MINIMUM = '16:30-21:00';
+/**
+ * Minimale openingstijd volgens de overeenkomst (vrijdag, zaterdag, zondag + 2 andere dagen). Instelbaar in de tab
+ * Instellingen (min_open_van, min_open_tot). Server: openingsMinimumUitInstellingen_ (Partners.js); pagina's: de
+ * waarde die de server meestuurt (zetOpeningsMinimum). Zonder instelling: 17:00-21:00.
+ */
+var OPENINGS_MINIMUM_STANDAARD = '17:00-21:00';
+var openingsMinimum_ = '';
+
+function zetOpeningsMinimum(tijdvak) {
+  openingsMinimum_ = normaliseerTijdvak(tijdvak) || '';
+  return openingsMinimum();
+}
+
+/** "17:00-21:00" */
+function openingsMinimum() {
+  if (!openingsMinimum_ && typeof openingsMinimumUitInstellingen_ === 'function') {
+    try { openingsMinimum_ = openingsMinimumUitInstellingen_() || ''; } catch (e) { openingsMinimum_ = ''; }
+  }
+  return openingsMinimum_ || OPENINGS_MINIMUM_STANDAARD;
+}
+
+/** "17:00-21:00" → "van 17:00 tot 21:00" */
+function minimumTekst(minimum) {
+  return 'van ' + (minimum || openingsMinimum()).replace('-', ' tot ');
+}
+
+/** Uitleg (ⓘ) met de actuele minimale openingstijd ingevuld. */
+function uitlegTekst(veld) {
+  var m = openingsMinimum().split('-');
+  return String(UITLEG[veld] || '').replace('{min_van}', m[0]).replace('{min_tot}', m[1]);
+}
 var VERPLICHTE_DAGEN = ['vr', 'za', 'zo'];
 var MIN_OPEN_DAGEN = 5;
 
@@ -125,11 +155,8 @@ var FORMULIER_STAPPEN = [
     { veld: 'afhaaltijden', label: 'Afhaaltijden', soort: 'tijden',
       verplicht: function (g) { return g.afhalen === 'ja'; }, toon: function (g) { return g.afhalen === 'ja'; } }
   ] },
+  // Andere virtuele merken vult alleen Virtualbite in (controlescherm; externe_merken_ja/externe_merken in PartnerRegels.js).
   { titel: 'Overig', velden: [
-    { veld: 'externe_merken_ja', label: 'Draaien er al andere virtuele merken vanuit de zaak?', soort: 'keuze', keuzes: 'ja_nee',
-      verplicht: true },
-    { veld: 'externe_merken', label: 'Welke merken?', soort: 'tekst', voorbeeld: 'Bijv. Burger Brothers, Wok Express',
-      verplicht: function (g) { return g.externe_merken_ja === 'ja'; }, toon: function (g) { return g.externe_merken_ja === 'ja'; } },
     { veld: 'opmerkingen', label: 'Opmerkingen', soort: 'tekst', verplicht: false }
   ] }
 ];
@@ -175,7 +202,7 @@ function controleerTijden_(invoer) {
 /** Dagen (open) die het minimum niet dekken, bijv. ['ma', 'di']. */
 function dagenOnderMinimum(tijden, minimum) {
   var t = controleerTijden_(tijden);
-  return t.open.filter(function (d) { return !dektMinimum(t.waarde[d], minimum || OPENINGS_MINIMUM); });
+  return t.open.filter(function (d) { return !dektMinimum(t.waarde[d], minimum || openingsMinimum()); });
 }
 
 /** Regels voor de bezorgtijden: vrijdag, zaterdag en zondag + minimaal 2 andere dagen. '' als het klopt. */
@@ -188,14 +215,52 @@ function bezorgdagenFout(open) {
   return '';
 }
 
-function dagenTekst_(dagen) {
-  return dagen.map(function (d) { return DAG_NAAM[d]; }).join(', ');
+/**
+ * Waarom een dag het minimum niet dekt: "je opent om 17:30", "je sluit om 20:00", "je bent tussen 19:00 en 19:30
+ * dicht" (of een combinatie). Tijden over middernacht tellen door (17:00-01:00 dekt tot 21:00).
+ */
+function minimumReden(vakken, minimum) {
+  var min = normaliseerTijdvak(minimum || openingsMinimum());
+  var tijd = function (m) { m = ((m % 1440) + 1440) % 1440; return tweeCijfersTijd_(Math.floor(m / 60)) + ':' + tweeCijfersTijd_(m % 60); };
+  var mv = min.split('-').map(minutenVan_);
+  if (mv[1] <= mv[0]) mv[1] += 1440;
+  var stukken = (vakken || []).map(normaliseerTijdvak).filter(Boolean).map(function (v) {
+    var t = v.split('-').map(minutenVan_);
+    if (t[1] <= t[0]) t[1] += 1440;
+    return t;
+  }).sort(function (a, b) { return a[0] - b[0]; });
+  var samen = []; // aaneengesloten blokken
+  stukken.forEach(function (s) {
+    var laatste = samen[samen.length - 1];
+    if (laatste && s[0] <= laatste[1]) laatste[1] = Math.max(laatste[1], s[1]); else samen.push(s.slice());
+  });
+  var binnen = samen.filter(function (s) { return s[1] > mv[0] && s[0] < mv[1]; });
+  if (!binnen.length) return 'je bent tussen ' + tijd(mv[0]) + ' en ' + tijd(mv[1]) + ' dicht';
+  var delen = [];
+  if (binnen[0][0] > mv[0]) delen.push('je opent om ' + tijd(binnen[0][0]));
+  for (var i = 0; i < binnen.length - 1; i++) {
+    delen.push('je bent tussen ' + tijd(binnen[i][1]) + ' en ' + tijd(binnen[i + 1][0]) + ' dicht');
+  }
+  var eind = binnen[binnen.length - 1][1];
+  if (eind < mv[1]) delen.push('je sluit om ' + tijd(eind));
+  return delen.length < 2 ? delen.join('') : delen.slice(0, -1).join(', ') + ' en ' + delen[delen.length - 1].replace(/^je /, '');
 }
 
-/** Waarschuwing (niet blokkerend) als open dagen het minimum niet dekken. */
-function minimumWaarschuwing(onder, minimum) {
-  return onder.length ? 'Op ' + dagenTekst_(onder) + ' ben je niet de hele tijd open van ' +
-    (minimum || OPENINGS_MINIMUM).replace('-', ' tot ') + '. Volgens de overeenkomst is dat de minimale openingstijd.' : '';
+function tweeCijfersTijd_(n) { return (n < 10 ? '0' : '') + n; }
+
+/**
+ * Waarschuwing als open dagen het minimum niet dekken, per dag concreet: "Maandag: je opent om 17:30. Volgens de
+ * overeenkomst ben je minimaal open van 17:00 tot 21:00." '' als alles klopt.
+ */
+function minimumWaarschuwing(tijden, minimum) {
+  var m = minimum || openingsMinimum();
+  var t = controleerTijden_(tijden);
+  var onder = dagenOnderMinimum(t.waarde, m);
+  if (!onder.length) return '';
+  return onder.map(function (d) {
+    var naam = DAG_NAAM[d].charAt(0).toUpperCase() + DAG_NAAM[d].slice(1);
+    return naam + ': ' + minimumReden(t.waarde[d], m) + '.';
+  }).join(' ') + ' Volgens de overeenkomst ben je minimaal open ' + minimumTekst(m) + '.';
 }
 
 /** Controle van één ingevuld (niet leeg) veld. Geeft {waarde, fout}. Gedeeld met de pagina (direct bij typen). */
@@ -249,8 +314,8 @@ function valideerPartnerFormulier(g) {
       leeg = t.leeg;
       if (!fout && !leeg && d.veld === 'bezorgtijden') {
         fout = bezorgdagenFout(t.open);
-        var onder = dagenOnderMinimum(t.waarde);
-        if (onder.length) waarschuwingen.bezorgtijden = minimumWaarschuwing(onder);
+        var melding = minimumWaarschuwing(t.waarde);
+        if (melding) waarschuwingen.bezorgtijden = melding;
       }
     } else if (!leeg) {
       var v = controleerVeld(d, tekst);
