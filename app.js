@@ -581,8 +581,13 @@
         '. De partner heeft nog niets ingevuld. Herinneringen gaan automatisch op dag 3, 5 en 7.'],
       'Deels ingevuld': ['info', 'De partner is bezig met invullen' + (p.formulier_opgeslagen_op ? ' (laatst opgeslagen ' +
         p.formulier_opgeslagen_op + ')' : '') + '. Herinneringen gaan automatisch op dag 3, 5 en 7.'],
-      'Te tekenen': ['info', 'Akkoord gegeven' + (p.gecontroleerd_op ? ' op ' + p.gecontroleerd_op : '') + '. Stuur de ' +
-        'tekenlink via mail of WhatsApp (kaart "Overeenkomst" hieronder).'],
+      'Te tekenen': ['info', 'Akkoord gegeven' + (p.gecontroleerd_op ? ' op ' + p.gecontroleerd_op : '') + '. ' +
+        (p.teken_verstuurd_op ? 'De tekenlink is verstuurd op ' + p.teken_verstuurd_op + ' (zie de kaart "Overeenkomst").' :
+          p.kanaal === 'whatsapp' ? 'Je krijgt een melding om de tekenlink via WhatsApp te sturen.' :
+          'De tekenlink wordt automatisch per mail verstuurd zodra de stukken klaar zijn.')],
+      'Getekend': ['info', 'Getekend' + (p.getekend_op ? ' op ' + p.getekend_op : '') + (p.teken_naam ? ' door ' + p.teken_naam +
+        (p.teken_functie ? ' (' + p.teken_functie + ')' : '') : '') + '. Verwerken (PDF\'s met handtekening, mails, ' +
+        'TB-aanmelding) volgt in fase 4d.'],
       'Geannuleerd': ['let', 'Deze partner is geannuleerd' + (p.geannuleerd_op ? ' op ' + p.geannuleerd_op : '') + '.']
     }[p.status];
     return t ? '<div class="melding-blok mb-' + t[0] + '">' + esc(t[1]) + '</div>' : '';
@@ -636,10 +641,19 @@
     return h;
   }
 
-  /** Zolang de stukken worden gemaakt: elke 20 s het detail verversen (alleen als dezelfde partner nog open staat). */
+  /**
+   * Zolang de stukken worden gemaakt of de tekenlink nog niet weg is (automatische mail of WhatsApp-melding): elke 20 s
+   * het detail verversen, alleen als dezelfde partner nog open staat; hooguit ±10 minuten.
+   */
+  var verversRondes = 0;
+  var verversId = '';
   function planVerversen(p) {
     clearTimeout(verversTimer);
-    if (p.status !== 'Te tekenen' || p.contract_status !== 'maken') return;
+    if (verversId !== p.id) { verversId = p.id; verversRondes = 0; }
+    var wacht = p.status === 'Te tekenen' && !p.getekend_op &&
+      (p.contract_status === 'maken' || (p.contract_status === 'klaar' && !p.teken_verstuurd_op));
+    if (!wacht) { verversRondes = 0; return; }
+    if (++verversRondes > 30) return;
     verversTimer = setTimeout(function () {
       if (!huidig || huidig.id !== p.id) return;
       roep('detail', [p.id]).then(function (vers) {
