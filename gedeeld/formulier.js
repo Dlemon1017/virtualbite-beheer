@@ -252,7 +252,7 @@
       h += '<div class="sub-label">Openingstijd</div>' + vanTotHtml(vak, 'alg', '', r.alg, 'Openingstijd', dis, true,
         { van: '17:00', tot: '22:00' }) + '<div class="klein">Geldt voor alle open dagen; per dag kun je afwijken.</div>';
       if (open.length) {
-        h += '<div class="dag-lijst">' + open.map(function (d, i) {
+        h += '<div class="dag-lijst">' + open.map(function (d) {
           var hoofd = roosterHoofd(r, d);
           var regel = '<div class="dag-regel"><span class="dag">' + DAGNAMEN[d] + '</span>' + (r.afwijk[d] ?
             vanTotHtml(vak, 'dag', d, r.afwijk[d], DAG_NAAM[d], dis, false) +
@@ -261,7 +261,7 @@
               (uit ? '' : '<button type="button" class="tekst-knop" data-ractie="wijzig" data-dag="' + d + '">wijzig</button>')) + '</div>';
           if (r.middagJa) {
             regel += '<div class="dag-regel middag"><span class="dag">middag</span>' + vanTotHtml(vak, 'middag', d, r.middag[d] ||
-              { van: '', tot: '' }, DAG_NAAM[d] + ' middag', dis, false, i === 0 ? { van: '11:30', tot: '14:00' } : null) + '<span></span></div>';
+              { van: '', tot: '' }, DAG_NAAM[d] + ' middag', dis, false) + '<span></span></div>';
           }
           return regel;
         }).join('') + '</div>';
