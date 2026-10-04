@@ -9,7 +9,7 @@
 <meta name="color-scheme" content="light dark">
 <title>Virtualbite contracttool – beheer</title>
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="stijl.css?v=1791042810">
+<link rel="stylesheet" href="stijl.css?v=1791076993">
 </head>
 <body>
 <section id="login" hidden>
@@ -49,9 +49,23 @@
     <input id="n-naam" autocomplete="off" autocapitalize="words">
     <div class="fout" data-fout="naam"></div>
 
+    <label for="n-voornaam">Voornaam contactpersoon</label>
+    <input id="n-voornaam" autocomplete="off" autocapitalize="words" placeholder="Bijv. Jan">
+    <div class="klein">Gebruikt in mails en WhatsApp ("Hoi Jan").</div>
+    <div class="fout" data-fout="voornaam"></div>
+
     <label for="n-email">E-mail partner</label>
     <input id="n-email" type="email" inputmode="email" autocomplete="off" autocapitalize="off">
     <div class="fout" data-fout="email"></div>
+
+    <label for="n-mobiel">Mobiel partner</label>
+    <input id="n-mobiel" type="tel" inputmode="tel" autocomplete="off" placeholder="Bijv. 0612345678">
+    <div class="klein">Nodig voor uitnodigen via WhatsApp.</div>
+    <div class="fout" data-fout="mobiel"></div>
+
+    <label for="n-merk">Merk</label>
+    <select id="n-merk"></select>
+    <div class="fout" data-fout="merk"></div>
 
     <label for="n-stad">Stad (vestigingsnaam)</label>
     <input id="n-stad" autocomplete="off" autocapitalize="words">
@@ -83,16 +97,17 @@
   <main id="detailInhoud"></main>
 </section>
 
-<div id="uitleg" role="tooltip" hidden></div>
 <div id="melding" role="status"></div>
 
-<script src="config.js?v=1791042810"></script>
-<script src="gedeeld/Validatie.js?v=1791042810"></script>
-<script src="gedeeld/Adres.js?v=1791042810"></script>
-<script src="gedeeld/Berekening.js?v=1791042810"></script>
-<script src="gedeeld/Postcodes.js?v=1791042810"></script>
-<script src="gedeeld/Velden.js?v=1791042810"></script>
-<script src="gedeeld/CustomerFacing.js?v=1791042810"></script>
-<script src="app.js?v=1791042810"></script>
+<script src="config.js?v=1791076993"></script>
+<script src="gedeeld/Validatie.js?v=1791076993"></script>
+<script src="gedeeld/Adres.js?v=1791076993"></script>
+<script src="gedeeld/Berekening.js?v=1791076993"></script>
+<script src="gedeeld/Postcodes.js?v=1791076993"></script>
+<script src="gedeeld/Velden.js?v=1791076993"></script>
+<script src="gedeeld/CustomerFacing.js?v=1791076993"></script>
+<script src="gedeeld/Opvolging.js?v=1791076993"></script>
+<script src="gedeeld/formulier.js?v=1791076993"></script>
+<script src="app.js?v=1791076993"></script>
 </body>
 </html>
