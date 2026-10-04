@@ -85,20 +85,31 @@ input:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--foc
 .veld-status { font-size: 12px; color: var(--zacht); margin-top: 4px; min-height: 16px; }
 .veld-status.ok { color: var(--groen); }
 .veld-status.fout { color: var(--rood); }
-.tijden { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); gap: 6px 10px; align-items: center; }
-.tijden .dag { font-size: 14px; color: var(--zacht); align-self: end; padding-bottom: 13px; }
-.tijden .blok { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 4px; align-items: end; }
-.tijden .streep { color: var(--zacht); padding-bottom: 12px; }
-.tijden .kiezer { display: flex; flex-direction: column; margin: 0; min-width: 0; font-weight: 400; }
-.tijden .kiezer span { font-size: 12px; color: var(--zacht); text-align: center; margin-bottom: 2px; }
-.tijden select { min-height: 44px; padding: 8px 4px; font-size: 16px; text-align: center; text-align-last: center;
+.rooster .sub-label { font-size: 14px; font-weight: 600; margin: 14px 0 6px; }
+.rooster .sub-label:first-child { margin-top: 4px; }
+.dag-vinkjes { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.dag-vink { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 0; padding: 8px 0; border: 1px solid var(--lijn);
+  border-radius: 10px; background: var(--veld); font-size: 14px; font-weight: 500; cursor: pointer; }
+.dag-vink input { width: 20px; height: 20px; min-height: 0; padding: 0; margin: 0; -webkit-appearance: checkbox; appearance: auto;
+  accent-color: var(--accent); }
+.dag-vink:has(input:checked) { border-color: var(--accent); background: var(--accent-zacht); }
+.dag-vink:has(input:disabled) { cursor: default; }
+.let-tekst { color: var(--geel); }
+.rooster .blok { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 4px; align-items: end; }
+.rooster .streep { color: var(--zacht); padding-bottom: 12px; }
+.rooster .kiezer { display: flex; flex-direction: column; margin: 0; min-width: 0; font-weight: 400; }
+.rooster .kiezer span { font-size: 12px; color: var(--zacht); text-align: center; margin-bottom: 2px; }
+.rooster select { min-height: 44px; padding: 8px 4px; font-size: 16px; text-align: center; text-align-last: center;
   font-variant-numeric: tabular-nums; width: 100%; min-width: 0; -webkit-appearance: none; appearance: none; }
-.tijden select.leeg { color: var(--zacht); }
-/* Smal scherm: het tweede blok onder het eerste. */
-@media (max-width: 480px) {
-  .tijden { grid-template-columns: auto minmax(0, 1fr); }
-  .tijden .blok[data-blok="1"] { grid-column: 2; margin-bottom: 6px; }
-}
+.rooster select.leeg { color: var(--zacht); }
+.dag-lijst { margin-top: 10px; }
+.dag-regel { display: grid; grid-template-columns: 52px minmax(0, 1fr) 56px; gap: 8px; align-items: center; padding: 6px 0;
+  border-top: 1px solid var(--lijn); }
+.dag-regel.middag { border-top: 0; padding-top: 0; }
+.dag-regel .dag { font-size: 14px; color: var(--zacht); }
+.dag-regel .tijd { font-variant-numeric: tabular-nums; }
+.dag-regel .tekst-knop { justify-self: end; font-weight: 500; }
+.dag-regel .streep { padding-bottom: 12px; }
 .bsn-rij { display: flex; gap: 8px; align-items: center; }
 .bsn-rij .waarde { flex: 1; font-variant-numeric: tabular-nums; letter-spacing: .04em; }
 .klein-knop { width: auto; min-height: 40px; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--lijn);
@@ -196,7 +207,7 @@ details.ingevuld[open] summary { margin-bottom: 4px; }
 @media (max-width: 420px) { .veld-rij { grid-template-columns: 1.2fr 1fr .8fr; gap: 6px; } }
 .pc-regel label { margin-top: 10px; }
 .pc-regel:first-child label { margin-top: 6px; }
-.tijden { margin-top: 6px; }
+.rooster { margin-top: 6px; }
 .grens-uitleg { color: var(--geel); font-size: 13px; margin-top: 10px; }
 
 /* Accentkleur: hoofdknoppen groen als alles klopt, anders gedimd (blijven klikbaar) */

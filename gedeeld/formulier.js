@@ -146,27 +146,7 @@
         return '<label class="vink-regel"><input type="checkbox" id="' + id + '" data-vinkje="' + esc(d.veld) + '"' +
           (w === 'ja' ? ' checked' : '') + dis + '> ' + esc(d.label) + '</label>'; // standaard uit
       }
-      if (d.soort === 'tijden') { // per dag twee blokken, elk "van" en "tot" (kwartieren); opslag blijft "16:30-21:30"
-        var t = leesTijden(w);
-        return '<div class="klein">Per dag twee blokken (bijv. middag en avond). Laat leeg als je die dag dicht bent.</div>' +
-          '<div class="tijden" data-tijden="' + esc(d.veld) + '">' +
-          DAGEN.map(function (dag, di) {
-            var v = t[dag] || [];
-            return '<span class="dag">' + DAGNAMEN[dag] + '</span>' + [0, 1].map(function (i) {
-              var delen = String(v[i] || '').split('-');
-              var naam = esc(d.label) + ' ' + DAG_NAAM[dag] + ', blok ' + (i + 1);
-              var van = delen.length === 2 ? delen[0] : '';
-              return '<div class="blok" data-blok="' + i + '">' +
-                '<label class="kiezer"><span>van</span>' + tijdKiezer(dag, i, 'van', van, '', di === 0, naam, dis) + '</label>' +
-                '<span class="streep">–</span>' +
-                '<label class="kiezer"><span>tot</span>' + tijdKiezer(dag, i, 'tot', delen.length === 2 ? delen[1] : '', van, di === 0,
-                  naam, dis) + '</label></div>';
-            }).join('');
-          }).join('') + '</div>' +
-          (uit ? '' : '<div class="knoppen-rij"><button type="button" class="klein-knop" data-actie="tijden-alle" data-vak="' +
-            esc(d.veld) + '">Zelfde tijden voor alle dagen</button>' + (d.veld === 'afhaaltijden' ? '<button type="button" ' +
-            'class="klein-knop" data-actie="tijden-als-bezorg">Zelfde als bezorgtijden</button>' : '') + '</div>');
-      }
+      if (d.soort === 'tijden') return '<div class="rooster" data-rooster="' + esc(d.veld) + '">' + roosterInhoud(d.veld, p, uit) + '</div>';
       if (d.soort === 'bsn') {
         return '<div class="bsn-rij" id="bsn-tonen"' + (p.heeft_bsn ? '' : ' hidden') + '><span class="waarde" id="bsn-waarde">' +
           esc(p.bsn_gemaskeerd) + '</span>' +
@@ -181,6 +161,7 @@
       return '<input id="' + id + '" data-veld="' + esc(d.veld) + '" value="' + esc(w) + '"' + type + vb + ' autocomplete="off"' + dis + '>';
     }
 
+    // ---------- Tijden: rooster (dagen, één openingstijd, afwijkende dagen, middag; logica in gedeeld/Rooster.js) ----------
     // Kwartieren, beginnend bij 06:00 (na middernacht onderaan: 00:00-05:45).
     var KWARTIEREN = (function () {
       var uit = [];
@@ -190,98 +171,169 @@
       }
       return uit;
     })();
-    var TIJD_VOORBEELD = [{ van: '11:30', tot: '14:00' }, { van: '17:00', tot: '21:30' }];
-
-    /** Plaats in de dag die om 06:00 begint (01:00 komt na 23:45). */
-    function dagMinuut(t) {
-      var m = /^(\d{2}):(\d{2})$/.exec(t || '');
-      return m ? ((Number(m[1]) * 60 + Number(m[2]) - 360) % 1440 + 1440) % 1440 : -1;
-    }
 
     /**
-     * Opties van één keuzelijst. "van": de hele lijst (06:00-05:45); de lege keuze staat vóór 16:00, zodat de lijst
-     * daar opent. "tot": alleen tijden ná "van" (door over middernacht, tot 05:45); de lege keuze bovenaan, dus de lijst
-     * opent bij de eerste tijd na "van". Zonder "van": de hele lijst, lege keuze vóór 21:00.
+     * Opties van één keuzelijst. "van": de hele lijst (06:00-05:45); de lege keuze staat vóór `anker` (16:00, bij de
+     * middag 11:00), zodat de lijst daar opent. "tot": alleen tijden ná "van" (door over middernacht, tot 05:45); de lege
+     * keuze bovenaan, dus de lijst opent bij de eerste tijd na "van".
      */
-    function tijdOpties(kant, waarde, van, leegTekst) {
+    function tijdOpties(kant, waarde, van, leegTekst, anker) {
       var lijst = kant === 'tot' && van ? KWARTIEREN.filter(function (x) { return dagMinuut(x) > dagMinuut(van); }) : KWARTIEREN.slice();
       if (waarde && lijst.indexOf(waarde) === -1) lijst.unshift(waarde); // oude waarde buiten de lijst: niet kwijtraken
-      var leegVoor = kant === 'tot' && van ? lijst[0] : kant === 'van' ? '16:00' : '21:00';
+      var leegVoor = kant === 'tot' && van ? lijst[0] : anker;
       var leeg = '<option value=""' + (waarde ? '' : ' selected') + '>' + esc(leegTekst) + '</option>';
       return lijst.map(function (x) {
         return (x === leegVoor ? leeg : '') + '<option' + (x === waarde ? ' selected' : '') + '>' + x + '</option>';
       }).join('') + (lijst.indexOf(leegVoor) === -1 ? leeg : '');
     }
 
-    /** Keuzelijst voor één tijd. Het voorbeeld ("Bijv. 11:30") alleen bij de eerste dag (maandag), anders "–". */
-    function tijdKiezer(dag, i, kant, waarde, van, metVoorbeeld, naam, dis) {
-      var leegTekst = metVoorbeeld ? 'Bijv. ' + TIJD_VOORBEELD[i][kant] : '–';
-      return '<select data-dag="' + dag + '" data-i="' + i + '" data-kant="' + kant + '" data-leeg="' + esc(leegTekst) + '" aria-label="' +
-        naam + ', ' + kant + '"' + (waarde ? '' : ' class="leeg"') + dis + '>' + tijdOpties(kant, waarde, van, leegTekst) + '</select>';
+    /** Eén tijd (van of tot). soort: alg | dag | middag. */
+    function tijdKiezer(vak, soort, dag, kant, x, leegTekst, naam, dis) {
+      var anker = soort === 'middag' ? (kant === 'van' ? '11:00' : '14:00') : (kant === 'van' ? '16:00' : '21:00');
+      return '<select data-rsoort="' + soort + '" data-dag="' + dag + '" data-kant="' + kant + '" aria-label="' + esc(naam + ', ' + kant) +
+        '"' + (x[kant] ? '' : ' class="leeg"') + dis + '>' + tijdOpties(kant, x[kant], kant === 'tot' ? x.van : '', leegTekst, anker) +
+        '</select>';
     }
 
-    /** Na een nieuwe "van": de "tot"-lijst opnieuw (alleen latere tijden); een "tot" die niet meer past, wordt leeg. */
-    function bouwTot(blok) {
-      var van = blok.querySelector('[data-kant="van"]').value;
-      var tot = blok.querySelector('[data-kant="tot"]');
-      var w = tot.value && (!van || dagMinuut(tot.value) > dagMinuut(van)) ? tot.value : '';
-      tot.innerHTML = tijdOpties('tot', w, van, tot.getAttribute('data-leeg'));
-      tot.value = w;
-      tot.classList.toggle('leeg', !w);
+    function vanTotHtml(vak, soort, dag, x, naam, dis, metLabels, voorbeeld) {
+      var kies = function (kant) {
+        var k = tijdKiezer(vak, soort, dag, kant, x, voorbeeld ? 'Bijv. ' + voorbeeld[kant] : '–', naam, dis);
+        return metLabels ? '<label class="kiezer"><span>' + kant + '</span>' + k + '</label>' : k;
+      };
+      return '<div class="blok">' + kies('van') + '<span class="streep">–</span>' + kies('tot') + '</div>';
     }
 
-    /** Eén blok vullen ("17:00-21:30" of ''). */
-    function zetBlok(blok, tijdvak) {
-      var delen = String(tijdvak || '').split('-');
-      var van = blok.querySelector('[data-kant="van"]');
-      var w = delen.length === 2 ? delen[0] : '';
-      van.innerHTML = tijdOpties('van', w, '', van.getAttribute('data-leeg'));
-      van.value = w;
-      van.classList.toggle('leeg', !w);
-      var tot = blok.querySelector('[data-kant="tot"]');
-      tot.innerHTML = tijdOpties('tot', delen.length === 2 ? delen[1] : '', w, tot.getAttribute('data-leeg'));
-      tot.value = delen.length === 2 ? delen[1] : '';
-      tot.classList.toggle('leeg', !tot.value);
+    var roosters = {}; // vak → {p, r}: wat op het scherm staat (ook open dagen zonder tijd)
+    var afhaalZelfde = { p: null, ja: null };
+
+    function vasteDagen(vak) { return vak === 'bezorgtijden' ? VERPLICHTE_DAGEN : []; }
+
+    function rooster(vak, p) {
+      if (!roosters[vak] || roosters[vak].p !== p) roosters[vak] = { p: p, r: roosterUitTijden(p[vak], vasteDagen(vak)) };
+      return roosters[vak].r;
     }
 
-    function blokkenVanDag(vak, dag) {
-      return Array.prototype.filter.call(qa('[data-tijden="' + vak + '"] .blok'), function (b) {
-        return b.querySelector('[data-dag="' + dag + '"]');
-      });
-    }
+    function normTijden(x) { return JSON.stringify(tijdenUitRooster(roosterUitTijden(x))); }
 
-    /** Na kopiëren: opslaan en een oude melding weg. */
-    function tijdenGewijzigd(vak) {
-      zetStatus(vak, '');
-      f.huidig[vak] = tijdenUitScherm(vak);
-      bewaar(vak, tijdenUitScherm(vak), true);
-    }
-
-    /** "Zelfde tijden voor alle dagen": de eerst ingevulde dag naar alle lege dagen (daarna per dag aan te passen). */
-    function zelfdeVoorAlleDagen(vak) {
-      var t = tijdenUitScherm(vak);
-      var bron = DAGEN.filter(function (dag) { return (t[dag] || []).some(Boolean); })[0];
-      if (!bron) { if (cfg.melding) cfg.melding('Vul eerst de tijden van één dag in.', true); return; }
-      DAGEN.forEach(function (dag) {
-        var blokken = blokkenVanDag(vak, dag);
-        var leeg = !blokken.some(function (b) { return Array.prototype.some.call(b.querySelectorAll('select'), function (s) { return s.value; }); });
-        if (dag === bron || !leeg) return;
-        blokken.forEach(function (b, i) { zetBlok(b, t[bron][i]); });
-      });
-      tijdenGewijzigd(vak);
-    }
-
-    /** "Zelfde als bezorgtijden": afhaaltijden = bezorgtijden (alle dagen). */
-    function afhaalAlsBezorg() {
-      var bezorg = q('[data-tijden="bezorgtijden"]') ? tijdenUitScherm('bezorgtijden') : leesTijden(f.huidig.bezorgtijden);
-      if (!DAGEN.some(function (dag) { return (bezorg[dag] || []).some(Boolean); })) {
-        if (cfg.melding) cfg.melding('Vul eerst de bezorgtijden in.', true);
-        return;
+    /** Afhalen op dezelfde tijden als bezorgen? Standaard ja (ook als er nog geen afhaaltijden zijn). */
+    function zelfdeAlsBezorg(p) {
+      if (afhaalZelfde.p !== p) {
+        var leeg = !DAGEN.some(function (d) { return (leesTijden(p.afhaaltijden)[d] || []).some(Boolean); });
+        afhaalZelfde = { p: p, ja: leeg || normTijden(p.afhaaltijden) === normTijden(p.bezorgtijden) };
       }
-      DAGEN.forEach(function (dag) {
-        blokkenVanDag('afhaaltijden', dag).forEach(function (b, i) { zetBlok(b, (bezorg[dag] || [])[i]); });
-      });
-      tijdenGewijzigd('afhaaltijden');
+      return afhaalZelfde.ja;
+    }
+
+    function keuzeKnoppen(soort, ja, dis) {
+      return '<div class="keuze" data-rkeuze="' + soort + '" role="group">' + [['ja', 'Ja'], ['nee', 'Nee']].map(function (k) {
+        return '<button type="button" data-waarde="' + k[0] + '" aria-pressed="' + (ja === (k[0] === 'ja')) + '"' + dis + '>' + k[1] + '</button>';
+      }).join('') + '</div>';
+    }
+
+    function roosterInhoud(vak, p, uit) {
+      var dis = uit ? ' disabled' : '';
+      var h = '';
+      if (vak === 'afhaaltijden') {
+        var zelfde = zelfdeAlsBezorg(p);
+        h += '<div class="sub-label">Zelfde tijden als bezorgen?</div>' + keuzeKnoppen('zelfde', zelfde, dis);
+        if (zelfde) return h + '<div class="klein mt">Afhalen kan op dezelfde dagen en tijden als bezorgen.</div>';
+      }
+      var r = rooster(vak, p);
+      var vast = vasteDagen(vak);
+      var open = DAGEN.filter(function (d) { return r.dagen[d]; });
+      h += '<div class="sub-label">Op welke dagen ben je open?</div><div class="dag-vinkjes">' + DAGEN.map(function (d) {
+        return '<label class="dag-vink"><input type="checkbox" data-rdag="' + d + '"' + (r.dagen[d] ? ' checked' : '') +
+          (uit || vast.indexOf(d) !== -1 ? ' disabled' : '') + ' aria-label="' + DAG_NAAM[d] + '"><span>' + DAGNAMEN[d] + '</span></label>';
+      }).join('') + '</div>';
+      if (vast.length) h += '<div class="klein">Vr, Za en Zo zijn verplicht volgens de overeenkomst.</div>';
+      if (vak === 'bezorgtijden' && open.length < MIN_OPEN_DAGEN) {
+        h += '<div class="klein let-tekst">Kies minimaal ' + MIN_OPEN_DAGEN + ' dagen: vrijdag, zaterdag, zondag en 2 andere.</div>';
+      }
+      h += '<div class="sub-label">Openingstijd</div>' + vanTotHtml(vak, 'alg', '', r.alg, 'Openingstijd', dis, true,
+        { van: '17:00', tot: '22:00' }) + '<div class="klein">Geldt voor alle open dagen; per dag kun je afwijken.</div>';
+      if (open.length) {
+        h += '<div class="dag-lijst">' + open.map(function (d, i) {
+          var hoofd = roosterHoofd(r, d);
+          var regel = '<div class="dag-regel"><span class="dag">' + DAGNAMEN[d] + '</span>' + (r.afwijk[d] ?
+            vanTotHtml(vak, 'dag', d, r.afwijk[d], DAG_NAAM[d], dis, false) +
+              (uit ? '' : '<button type="button" class="tekst-knop" data-ractie="terug" data-dag="' + d + '">zelfde</button>') :
+            '<span class="tijd">' + (hoofd.van && hoofd.tot ? hoofd.van + ' – ' + hoofd.tot : '–') + '</span>' +
+              (uit ? '' : '<button type="button" class="tekst-knop" data-ractie="wijzig" data-dag="' + d + '">wijzig</button>')) + '</div>';
+          if (r.middagJa) {
+            regel += '<div class="dag-regel middag"><span class="dag">middag</span>' + vanTotHtml(vak, 'middag', d, r.middag[d] ||
+              { van: '', tot: '' }, DAG_NAAM[d] + ' middag', dis, false, i === 0 ? { van: '11:30', tot: '14:00' } : null) + '<span></span></div>';
+          }
+          return regel;
+        }).join('') + '</div>';
+      }
+      h += '<div class="sub-label">Ben je op sommige dagen ook \'s middags open?</div>' + keuzeKnoppen('middag', r.middagJa, dis);
+      if (r.middagJa) h += '<div class="klein">Vul de middag in bij de dagen waarop je ook \'s middags open bent (optioneel).</div>';
+      return h;
+    }
+
+    function tekenRooster(vak) {
+      var el = q('[data-rooster="' + vak + '"]');
+      if (el) el.innerHTML = roosterInhoud(vak, f.huidig, !f.huidig.mag_bewerken);
+    }
+
+    /** Na een wijziging: opnieuw tekenen, opslaan, en afhaaltijden zo nodig meenemen. */
+    function roosterGewijzigd(vak) {
+      tekenRooster(vak);
+      var t = tijdenUitRooster(roosters[vak].r);
+      f.huidig[vak] = t;
+      var st = q('[data-status="' + vak + '"]');
+      if (st && st.classList.contains('fout') && !f.halveTijden(vak)) zetStatus(vak, ''); // melding weg als het nu klopt
+      bewaar(vak, t, true);
+      if (vak === 'bezorgtijden') f.volgAfhaaltijden();
+    }
+
+    /** "Zelfde tijden als bezorgen": afhaaltijden = bezorgtijden (en blijven meeveranderen). */
+    f.volgAfhaaltijden = function () {
+      var p = f.huidig;
+      if (!p || !p.mag_bewerken || p.afhalen !== 'ja' || !zelfdeAlsBezorg(p)) return;
+      var bezorg = roosters.bezorgtijden && roosters.bezorgtijden.p === p ? tijdenUitRooster(roosters.bezorgtijden.r) :
+        tijdenUitRooster(roosterUitTijden(p.bezorgtijden));
+      if (normTijden(p.afhaaltijden) === JSON.stringify(bezorg)) return;
+      p.afhaaltijden = bezorg;
+      roosters.afhaaltijden = null;
+      bewaar('afhaaltijden', bezorg, true);
+    };
+
+    function roosterWijziging(el) {
+      var vak = el.closest('[data-rooster]').getAttribute('data-rooster');
+      var r = rooster(vak, f.huidig);
+      if (el.hasAttribute('data-rdag')) {
+        r.dagen[el.getAttribute('data-rdag')] = el.checked;
+      } else if (el.hasAttribute('data-rsoort')) {
+        var soort = el.getAttribute('data-rsoort');
+        var dag = el.getAttribute('data-dag');
+        var x = soort === 'alg' ? r.alg : soort === 'dag' ? r.afwijk[dag] : (r.middag[dag] = r.middag[dag] || { van: '', tot: '' });
+        x[el.getAttribute('data-kant')] = el.value;
+        if (x.van && x.tot && dagMinuut(x.tot) <= dagMinuut(x.van)) x.tot = ''; // "tot" moet na "van" liggen
+      } else return;
+      roosterGewijzigd(vak);
+    }
+
+    function roosterKlik(knop) {
+      var vak = knop.closest('[data-rooster]').getAttribute('data-rooster');
+      var groep = knop.closest('[data-rkeuze]');
+      if (groep) {
+        var ja = knop.getAttribute('data-waarde') === 'ja';
+        if (groep.getAttribute('data-rkeuze') === 'zelfde') {
+          afhaalZelfde = { p: f.huidig, ja: ja };
+          roosters.afhaaltijden = null; // bij "Nee": verder vanaf de huidige (gekopieerde) tijden
+          tekenRooster(vak);
+          if (ja) f.volgAfhaaltijden();
+          return;
+        }
+        rooster(vak, f.huidig).middagJa = ja;
+      } else {
+        var r = rooster(vak, f.huidig);
+        var dag = knop.getAttribute('data-dag');
+        if (knop.getAttribute('data-ractie') === 'wijzig') r.afwijk[dag] = { van: r.alg.van, tot: r.alg.tot };
+        else delete r.afwijk[dag];
+      }
+      roosterGewijzigd(vak);
     }
 
     // Postcoderegels (partner): max. 5, elk één postcode of reeks.
@@ -370,6 +422,7 @@
     /** Na het plaatsen van de HTML: zichtbaarheid, markering en knoppen bijwerken. */
     f.naTekenen = function () {
       f.werkZichtbaarheidBij();
+      f.volgAfhaaltijden();
       f.toonMarkering(f.huidig && f.huidig.markering);
       naWijziging();
     };
@@ -629,30 +682,12 @@
       if (gemaskeerd) { $('v-bsn').value = ''; $('v-bsn').hidden = true; }
     }
 
-    /**
-     * Tijden zoals ze op het scherm staan: {ma: ['11:30-14:00', ''], …}. Een half ingevuld blok (alleen "van" of alleen
-     * "tot") telt als leeg; die staan in `half` (voor de melding bij "Volgende").
-     */
-    function roosterUitScherm(veld) {
-      var t = {};
-      var half = [];
-      qa('[data-tijden="' + veld + '"] .blok').forEach(function (blok) {
-        var van = blok.querySelector('[data-kant="van"]');
-        var tot = blok.querySelector('[data-kant="tot"]');
-        var dag = van.getAttribute('data-dag');
-        t[dag] = t[dag] || ['', ''];
-        if (van.value && tot.value) t[dag][Number(van.getAttribute('data-i'))] = van.value + '-' + tot.value;
-        else if (van.value || tot.value) half.push(dag);
-      });
-      return { tijden: t, half: half };
-    }
-    function tijdenUitScherm(veld) { return roosterUitScherm(veld).tijden; }
-
-    /** Melding voor een half ingevuld blok, of ''. */
+    /** Melding voor een half ingevulde tijd, of ''. */
     f.halveTijden = function (veld) {
-      if (!q('[data-tijden="' + veld + '"]')) return '';
-      var half = roosterUitScherm(veld).half;
-      return half.length ? 'Kies op ' + DAG_NAAM[half[0]] + ' zowel de begin- als de eindtijd (of laat beide leeg).' : '';
+      if (!q('[data-rooster="' + veld + '"]') || !roosters[veld] || (veld === 'afhaaltijden' && zelfdeAlsBezorg(f.huidig))) return '';
+      var h = roosterHalf(roosters[veld].r);
+      return h === 'alg' ? 'Kies bij de openingstijd zowel "van" als "tot".' :
+        h ? 'Kies op ' + DAG_NAAM[h] + ' zowel de begin- als de eindtijd (of laat beide leeg).' : '';
     };
 
     // Adres: straat en plaats automatisch via PDOK na postcode + huisnummer (+ toevoeging).
@@ -832,14 +867,8 @@
         controleerPcRegels();
         f.huidig.postcodes_gewenst = pcRegelsUitScherm().filter(Boolean).join('\n');
         bewaar('postcodes_gewenst', pcRegelsUitScherm(), true);
-      } else if (el.closest('[data-tijden]')) {
-        var vak = el.closest('[data-tijden]').getAttribute('data-tijden');
-        el.classList.toggle('leeg', !el.value);
-        if (el.getAttribute('data-kant') === 'van') bouwTot(el.closest('.blok'));
-        var st = q('[data-status="' + vak + '"]');
-        if (st && st.classList.contains('fout') && !f.halveTijden(vak)) zetStatus(vak, ''); // melding weg als het nu klopt
-        f.huidig[vak] = tijdenUitScherm(vak);
-        bewaar(vak, tijdenUitScherm(vak), true);
+      } else if (el.closest('[data-rooster]')) {
+        roosterWijziging(el);
       } else if (el.hasAttribute('data-rij-nr')) {
         bewaar('bezorggebied', f.rijenUitScherm(), true);
       }
@@ -857,8 +886,11 @@
         zetStatus(veld, '');
         f.werkZichtbaarheidBij();
         bewaar(veld, waarde, true);
+        if (veld === 'afhalen') f.volgAfhaaltijden();
         return;
       }
+      var rknop = e.target.closest('[data-rooster] [data-rkeuze] button, [data-rooster] [data-ractie]');
+      if (rknop && !rknop.disabled) { roosterKlik(rknop); return; }
       var knop = e.target.closest('[data-actie]');
       if (!knop) return;
       var actie = knop.getAttribute('data-actie');
@@ -872,10 +904,7 @@
         $('bsn-tonen').hidden = true; $('v-bsn').hidden = false; $('v-bsn').focus();
       } else if (actie === 'afstanden') {
         f.planAfstanden(true);
-      } else if (actie === 'tijden-alle') {
-        zelfdeVoorAlleDagen(knop.getAttribute('data-vak'));
-      } else if (actie === 'tijden-als-bezorg') {
-        afhaalAlsBezorg();
+
       } else if (actie === 'pc-erbij') {
         var aantal = qa('[data-pcregel]').length;
         if (aantal < MAX_POSTCODEREGELS) {
