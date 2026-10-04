@@ -240,6 +240,7 @@
 
   // ---------- Nieuwe partner ----------
   var nieuwRoute = '';
+  var nieuwKanaal = 'mail';
   var cfZelfGewijzigd = false;
 
   function vulMerken(merken) {
@@ -252,8 +253,10 @@
   function resetNieuw() {
     ['n-voornaam', 'n-achternaam', 'n-email', 'n-mobiel', 'n-stad', 'n-cf'].forEach(function (id) { $(id).value = ''; });
     nieuwRoute = '';
+    nieuwKanaal = 'mail';
     cfZelfGewijzigd = false;
     zetKeuze($('n-route'), '');
+    zetKeuze($('n-kanaal'), 'mail');
     $('nieuw').querySelectorAll('[data-fout]').forEach(function (f) { f.textContent = ''; });
   }
 
@@ -296,6 +299,13 @@
     zetKeuze($('n-route'), 'samen');
     $('nieuw').querySelectorAll('[data-fout]').forEach(function (f) { f.textContent = ''; });
   });
+  $('n-kanaal').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    nieuwKanaal = b.getAttribute('data-waarde');
+    zetKeuze($('n-kanaal'), nieuwKanaal);
+    $('nieuw').querySelector('[data-fout="mobiel"]').textContent = '';
+  });
   $('n-route').addEventListener('click', function (e) {
     var b = e.target.closest('button');
     if (!b) return;
@@ -307,7 +317,7 @@
   function werkAanmakenBij() {
     var mobiel = $('n-mobiel').value.trim();
     var klaar = !!$('n-voornaam').value.trim() && !!$('n-achternaam').value.trim() && !!normaliseerEmail($('n-email').value) &&
-      (!mobiel || !!whatsappNummer(mobiel)) && !!$('n-merk').value &&
+      (!mobiel || !!whatsappNummer(mobiel)) && (nieuwKanaal !== 'whatsapp' || !!whatsappNummer(mobiel)) && !!$('n-merk').value &&
       $('n-stad').value.trim().length >= 2 && !!normaliseerCfAdres($('n-cf').value, inst.cf_domein) && !!nieuwRoute;
     $('n-maak').classList.toggle('klaar', klaar);
   }
@@ -322,7 +332,8 @@
     var herstel = bezig($('n-maak'), 'Aanmaken…');
     roep('aanmaken', [{
       voornaam: $('n-voornaam').value, achternaam: $('n-achternaam').value, email: $('n-email').value, mobiel: $('n-mobiel').value,
-      merk: $('n-merk').value, stad: $('n-stad').value, customer_facing_email: $('n-cf').value, route: nieuwRoute
+      merk: $('n-merk').value, stad: $('n-stad').value, customer_facing_email: $('n-cf').value, route: nieuwRoute,
+      kanaal: nieuwKanaal
     }]).then(function (r) {
       herstel();
       if (r.fouten) {
@@ -334,7 +345,9 @@
       }
       form.hidden = true;
       $('nieuwKnop').hidden = false;
-      toon('Partner ' + r.id + ' aangemaakt.');
+      toon(r.automatisch_uitgenodigd ? 'Partner ' + r.id + ' aangemaakt en per mail uitgenodigd.' :
+        r.uitnodigen_fout ? 'Partner ' + r.id + ' aangemaakt; uitnodigen lukte niet: ' + r.uitnodigen_fout : 'Partner ' + r.id + ' aangemaakt.',
+        !!r.uitnodigen_fout);
       laad();
       toonDetail(r);
       openPaneel();
@@ -547,6 +560,10 @@
         'voor uitnodigen via WhatsApp.</div>') +
       '<div class="veld" data-rij="merk"><label for="v-merk">Merk</label><select id="v-merk" data-veld="merk"' +
         (uit ? ' disabled' : '') + '>' + merken + '</select><div class="veld-status" data-status="merk"></div></div>' +
+      '<div class="veld" data-rij="kanaal"><label for="v-kanaal">Kanaal</label><select id="v-kanaal" data-veld="kanaal"' +
+        (uit ? ' disabled' : '') + '><option value="mail"' + (p.kanaal !== 'whatsapp' ? ' selected' : '') + '>Mail (automatisch)</option>' +
+        '<option value="whatsapp"' + (p.kanaal === 'whatsapp' ? ' selected' : '') + '>WhatsApp (zelf sturen)</option></select>' +
+        '<div class="veld-status" data-status="kanaal"></div></div>' +
       veld('stad', 'Stad (vestigingsnaam)') +
       (zonderCf ? '' : veld('customer_facing_email', 'Customer-facing e-mailadres', mail,
         '<div class="klein">Moet uniek zijn over alle partners.</div>')) +
