@@ -615,11 +615,14 @@
     var bewaar = f.bewaar;
 
     function verstuur(veld, waarde) {
-      var s = lopend[veld] || (lopend[veld] = { bezig: null, volgende: null });
-      zetStatus(veld, 'Opslaan…');
+      var s = lopend[veld] || (lopend[veld] = { bezig: null, volgende: null, timer: null });
+      // "Opslaan…" pas na ±1 s: meestal is het dan al klaar, en dan voelt het sneller (opslaan gaat op de achtergrond).
+      clearTimeout(s.timer);
+      s.timer = setTimeout(function () { zetStatus(veld, 'Opslaan…'); }, 1000);
       if (s.bezig) { s.volgende = { waarde: waarde }; return; }
       var p = f.huidig;
       var volgende = function () {
+        clearTimeout(s.timer);
         s.bezig = null;
         if (!s.volgende) return false;
         var v = s.volgende.waarde;

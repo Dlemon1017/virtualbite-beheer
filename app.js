@@ -81,7 +81,14 @@
   function wisSessie() {
     try { localStorage.removeItem(SESSIE_SLEUTEL); } catch (e) { /* niets */ }
     sessie = null;
+    details = {}; // partnergegevens alleen in het geheugen, en weg bij uitloggen
+    lijstCache = null;
   }
+
+  // Lijst en details van de laatste "overzicht"-aanroep (alleen in het geheugen, nooit in browseropslag): schermen
+  // openen direct en worden daarna op de achtergrond ververst.
+  var details = {};
+  var lijstCache = null;
 
   var STORING = 'De server van Google reageert even niet. Probeer het zo opnieuw.';
   var MAX_WACHT_MS = 20000; // daarna geldt het als storing (Google laat een verzoek soms lang hangen)
@@ -189,7 +196,26 @@
   });
 
   // ---------- Lijst ----------
+  function toonLijst(partners) {
+    var n = partners.filter(function (p) { return p.status !== 'Geannuleerd'; }).length;
+    $('telling').textContent = n === 1 ? '1 partner' : n + ' partners';
+    $('lijst').innerHTML = partners.length ? partners.map(function (p) {
+      return '<button class="item' + (p.status === 'Geannuleerd' ? ' uit' : '') + '" data-id="' + esc(p.id) + '">' +
+        '<div class="wie"><div class="naam">' + esc(p.naam || p.id) + '</div>' +
+        '<div class="wanneer">' + esc([p.id, p.stad, p.customer_facing_email].filter(Boolean).join(' · ')) + '</div></div>' +
+        badge(p.status) + '</button>';
+    }).join('') : '<div class="leeg">Nog geen partners. Maak er een aan met "Nieuwe partner".</div>';
+  }
+
+  /** Lijst: eerst wat we al hebben (met de laatst bekende naam en status uit de details), daarna vers van de server. */
   function laad() {
+    if (lijstCache) {
+      toonLijst(lijstCache.map(function (p) {
+        var d = details[p.id];
+        return d ? Object.assign({}, p, { naam: naamVan(d) || p.naam, status: d.status, stad: d.stad,
+          customer_facing_email: d.customer_facing_email }) : p;
+      }));
+    }
     return roep('overzicht').then(function (o) {
       inst = o.instellingen || inst;
       zetOpeningsMinimum(inst.openings_minimum);
@@ -197,14 +223,11 @@
       $('n-test').hidden = !o.testmodus;
       vulMerken(o.merken);
       laatsteMerken = o.merken || [];
-      var n = o.partners.filter(function (p) { return p.status !== 'Geannuleerd'; }).length;
-      $('telling').textContent = n === 1 ? '1 partner' : n + ' partners';
-      $('lijst').innerHTML = o.partners.length ? o.partners.map(function (p) {
-        return '<button class="item' + (p.status === 'Geannuleerd' ? ' uit' : '') + '" data-id="' + esc(p.id) + '">' +
-          '<div class="wie"><div class="naam">' + esc(p.naam || p.id) + '</div>' +
-          '<div class="wanneer">' + esc([p.id, p.stad, p.customer_facing_email].filter(Boolean).join(' · ')) + '</div></div>' +
-          badge(p.status) + '</button>';
-      }).join('') : '<div class="leeg">Nog geen partners. Maak er een aan met "Nieuwe partner".</div>';
+      lijstCache = o.partners;
+      Object.keys(o.details || {}).forEach(function (id) {
+        if (!(huidig && huidig.id === id)) details[id] = o.details[id]; // de open partner niet overschrijven
+      });
+      toonLijst(o.partners);
     }).catch(function (e) {
       if (e.message !== 'Uitgelogd.') { $('telling').textContent = ''; toon(e.message, true); }
     });
@@ -354,13 +377,39 @@
     $('detail').scrollTop = 0;
   }
 
+  // Is er in het open detail al iets aangeraakt? Dan het scherm niet meer vervangen door de verse gegevens.
+  var aangeraakt = false;
+  ['input', 'change', 'click'].forEach(function (t) {
+    $('detailInhoud').addEventListener(t, function () { aangeraakt = true; }, true);
+  });
+
+  /**
+   * Partner openen: direct uit het geheugen (gegevens van de lijst), daarna vers van de server. Is er intussen niets
+   * aangeraakt en is er iets veranderd, dan het scherm stil bijwerken.
+   */
   function openDetail(id) {
-    $('detailInhoud').innerHTML = '<button class="terug" data-actie="terug">‹ Terug</button>' +
-      '<div class="laad-regel"></div><div class="laad-regel kort"></div><div class="laad-regel"></div>';
     openPaneel();
     bewerkStap = null;
-    roep('detail', [id]).then(toonDetail).catch(function (e) {
-      if (e.message !== 'Uitgelogd.') { toon(e.message, true); sluitDetail(); }
+    aangeraakt = false;
+    var bekend = details[id];
+    if (bekend) toonDetail(bekend);
+    else {
+      $('detailInhoud').innerHTML = '<button class="terug" data-actie="terug">‹ Terug</button>' +
+        '<div class="laad-regel"></div><div class="laad-regel kort"></div><div class="laad-regel"></div>';
+    }
+    var was = bekend ? JSON.stringify(bekend) : '';
+    roep('detail', [id]).then(function (p) {
+      if (!huidig && bekend) return; // intussen gesloten
+      if (huidig && huidig.id !== id) return; // intussen een andere partner
+      if (!bekend) { toonDetail(p); return; }
+      if (aangeraakt || JSON.stringify(p) === was) { details[id] = huidig; return; }
+      var top = $('detail').scrollTop;
+      toonDetail(p);
+      $('detail').scrollTop = top;
+    }).catch(function (e) {
+      if (e.message === 'Uitgelogd.') return;
+      toon(e.message, true);
+      if (!bekend) sluitDetail();
     });
   }
 
@@ -408,6 +457,7 @@
 
   function toonDetail(p) {
     zetHuidig(p);
+    details[p.id] = p; // het geheugen volgt wat op het scherm staat
     if (toontStatuskaart(p)) toonStatuskaart(p);
     else if (FORMULIER_STATUSSEN.indexOf(p.status) !== -1) toonFormulier(p);
     else toonControle(p);
@@ -710,12 +760,17 @@
       return;
     }
     if (actie === 'wijzig-stap' || actie === 'klaar-stap') {
+      // Direct openen/dichtklappen met wat op het scherm staat; daarna alleen de controlemeldingen vers ophalen.
       bewerkStap = actie === 'wijzig-stap' ? Number(knop.getAttribute('data-stap')) : null;
       var id = huidig.id;
+      var top = $('detail').scrollTop;
+      toonDetail(huidig);
+      $('detail').scrollTop = top;
       f.slaWachtendOp().then(function () { return roep('detail', [id]); }).then(function (p) {
-        var top = $('detail').scrollTop;
-        toonDetail(p);
-        $('detail').scrollTop = top;
+        if (!huidig || huidig.id !== id) return;
+        huidig.controle_fouten = p.controle_fouten;
+        huidig.waarschuwingen_formulier = p.waarschuwingen_formulier;
+        toonControleFouten(p.controle_fouten, p.waarschuwingen_formulier);
       }).catch(function (err) { toon(err.message, true); });
       return;
     }
@@ -771,7 +826,7 @@
     var route = huidig.route;
     f.slaWachtendOp().then(function () { return roep(fn, [id]); }).then(function (r) {
       herstel();
-      if (r.fouten) return toonFouten(id, fn, r.fouten);
+      if (r.fouten) return toonFouten(id, fn, r.fouten, r.detail);
       zetHuidig(r);
       if (fn === 'ingevuld' && route === 'samen') { toonAfronden(); return; }
       toon(klaarTekst || 'Ingevuld. Status: Wacht op controle.');
@@ -781,8 +836,9 @@
     }).catch(function (err) { herstel(); toon(err.message, true); });
   }
 
-  function toonFouten(id, fn, fouten) {
-    return roep('detail', [id]).then(function (p) {
+  /** Met het detail uit hetzelfde antwoord (sinds de snelheidsronde); anders nog apart ophalen. */
+  function toonFouten(id, fn, fouten, detail) {
+    return (detail ? Promise.resolve(detail) : roep('detail', [id])).then(function (p) {
       if (fn === 'akkoord') {
         var stap = FORMULIER_STAPPEN.map(function (st) { return st.velden.some(function (d) { return fouten[d.veld]; }); }).indexOf(true);
         if (stap !== -1 && FORMULIER_STAPPEN[stap].titel !== 'Bezorggebied') bewerkStap = stap;
