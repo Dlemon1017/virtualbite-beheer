@@ -414,6 +414,7 @@
   }
 
   function sluitDetail() {
+    clearTimeout(verversTimer);
     VBSluitUitleg();
     $('detail').classList.remove('open');
     $('detail').setAttribute('aria-hidden', 'true');
@@ -563,8 +564,8 @@
         '. De partner heeft nog niets ingevuld. Herinneringen gaan automatisch op dag 3, 5 en 7.'],
       'Deels ingevuld': ['info', 'De partner is bezig met invullen' + (p.formulier_opgeslagen_op ? ' (laatst opgeslagen ' +
         p.formulier_opgeslagen_op + ')' : '') + '. Herinneringen gaan automatisch op dag 3, 5 en 7.'],
-      'Te tekenen': ['info', 'Akkoord gegeven' + (p.gecontroleerd_op ? ' op ' + p.gecontroleerd_op : '') + '. Het versturen ' +
-        'van de overeenkomst wordt gebouwd in fase 4.'],
+      'Te tekenen': ['info', 'Akkoord gegeven' + (p.gecontroleerd_op ? ' op ' + p.gecontroleerd_op : '') + '. Stuur de ' +
+        'tekenlink via mail of WhatsApp (kaart "Overeenkomst" hieronder).'],
       'Geannuleerd': ['let', 'Deze partner is geannuleerd' + (p.geannuleerd_op ? ' op ' + p.geannuleerd_op : '') + '.']
     }[p.status];
     return t ? '<div class="melding-blok mb-' + t[0] + '">' + esc(t[1]) + '</div>' : '';
@@ -578,10 +579,66 @@
     $('detail').scrollTop = 0;
   }
 
+  // ---------- Kaart "Overeenkomst" (status Te tekenen; fase 4b) ----------
+  var verversTimer = null;
+
+  function tekenKaartHtml(p) {
+    if (p.status !== 'Te tekenen') return '';
+    var regel = function (label, waarde, html) {
+      return '<div><dt>' + esc(label) + '</dt><dd>' + (html ? waarde : esc(waarde)) + '</dd></div>';
+    };
+    var link = function (url, tekst) { return url ? '<a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(tekst) + '</a>' : ''; };
+    var h = '<section class="kaart" id="tekenKaart"><h2>Overeenkomst</h2>';
+    if (p.contract_status === 'maken') {
+      return h + '<p class="klein">De overeenkomst en "Zo werkt het" worden gemaakt (± 1 minuut). Dit scherm ververst vanzelf.</p></section>';
+    }
+    if (p.contract_status === 'fout') {
+      return h + '<div class="melding-blok mb-let">Maken lukte niet: ' + esc(p.contract_fout || 'onbekende fout') + '</div>' +
+        '<div class="knoppen-rij"><button type="button" class="klein-knop" data-actie="contract-opnieuw">Opnieuw maken</button></div></section>';
+    }
+    if (!p.stukken) return h + '<p class="klein">Nog geen stukken.</p></section>';
+    var al = !!p.teken_verstuurd_op;
+    var info = al ? 'Verstuurd op ' + p.teken_verstuurd_op + (p.laatst_teken_verstuurd_op && p.laatst_teken_verstuurd_op !==
+      p.teken_verstuurd_op ? ', laatst op ' + p.laatst_teken_verstuurd_op : '') + ' via ' +
+      (p.teken_via === 'whatsapp' ? 'WhatsApp' : 'mail') + (p.teken_link_geldig_tot ? '; link geldig tot ' + p.teken_link_geldig_tot : '') + '.' :
+      'Nog niet verstuurd.';
+    var herinneringen = (p.herinneringen_teken || []).map(function (x) {
+      return 'Dag ' + x.dag + ': ' + (x.verstuurd ? 'verstuurd ' + x.verstuurd : 'gepland ' + x.gepland);
+    });
+    if (p.herinnering_teken_handmatig_op) herinneringen.push('Handmatig: verstuurd ' + p.herinnering_teken_handmatig_op);
+    h += '<dl>' +
+      regel('Stukken', [link(p.stukken.overeenkomst, 'Overeenkomst (ongetekend)'), link(p.stukken.zwh, 'Zo werkt het'),
+        link(p.stukken.av, 'Algemene Partnervoorwaarden'), link(p.stukken.map, 'Map in Drive')].filter(Boolean).join('<br>'), true) +
+      regel('Tekenlink', info) +
+      regel('Herinneringen', herinneringen.length ? herinneringen.join('\n') : 'Starten na de tekenlink (dag 3, 5 en 7)') +
+      '</dl><div class="knoppen-rij">' +
+      '<button type="button" class="klein-knop" data-actie="tekenlink-mail">' + (al ? 'Opnieuw versturen via mail' : 'Tekenlink via mail') + '</button>' +
+      '<button type="button" class="klein-knop" data-actie="tekenlink-whatsapp">' + (al ? 'Opnieuw versturen via WhatsApp' : 'Tekenlink via WhatsApp') + '</button>' +
+      (al ? '<button type="button" class="klein-knop" data-actie="teken-herinnering-nu">Herinnering nu sturen</button>' : '') +
+      '</div></section>';
+    return h;
+  }
+
+  /** Zolang de stukken worden gemaakt: elke 20 s het detail verversen (alleen als dezelfde partner nog open staat). */
+  function planVerversen(p) {
+    clearTimeout(verversTimer);
+    if (p.status !== 'Te tekenen' || p.contract_status !== 'maken') return;
+    verversTimer = setTimeout(function () {
+      if (!huidig || huidig.id !== p.id) return;
+      roep('detail', [p.id]).then(function (vers) {
+        if (!huidig || huidig.id !== p.id) return;
+        var top = $('detail').scrollTop;
+        toonDetail(vers);
+        $('detail').scrollTop = top;
+      }).catch(function () { planVerversen(p); });
+    }, 20000);
+  }
+
   // ---------- Scherm 3: controle (Dimitri) ----------
   function toonControle(p) {
     var uit = p.status !== 'Wacht op controle';
-    var h = kopHtml(p, false) + statusUitleg(p);
+    var h = kopHtml(p, false) + statusUitleg(p) + tekenKaartHtml(p);
+    planVerversen(p);
     h += '<section class="kaart" id="controle"><h2>In te vullen door Virtualbite</h2>' + controleVelden(p, uit) + '</section>';
     h += '<div id="controleFouten"></div>';
     FORMULIER_STAPPEN.forEach(function (stap, i) {
@@ -725,6 +782,15 @@
       knop.setAttribute('aria-expanded', String(!menu.hidden));
       return;
     }
+    if (actie === 'tekenlink-mail') return uitnodigen(knop, 'mail', 'tekenlink');
+    if (actie === 'tekenlink-whatsapp') return uitnodigen(knop, 'whatsapp', 'tekenlink');
+    if (actie === 'teken-herinnering-nu' || actie === 'contract-opnieuw') {
+      var herstelT = bezig(knop, actie === 'contract-opnieuw' ? 'Bezig…' : 'Versturen…');
+      roep(actie === 'contract-opnieuw' ? 'contractOpnieuw' : 'tekenHerinneringNu', [huidig.id]).then(function (r) {
+        herstelT(); toon(actie === 'contract-opnieuw' ? 'De stukken worden opnieuw gemaakt.' : 'Herinnering verstuurd.'); toonDetail(r);
+      }).catch(function (err) { herstelT(); toon(err.message, true); });
+      return;
+    }
     if (actie === 'uitnodigen-mail') return uitnodigen(knop, 'mail');
     if (actie === 'uitnodigen-whatsapp') return uitnodigen(knop, 'whatsapp');
     if (actie === 'herinnering-nu') {
@@ -794,20 +860,22 @@
    * Uitnodigen. WhatsApp: het venster gaat meteen open (anders blokkeert de browser het als pop-up) en krijgt het
    * bericht zodra de server de link heeft gemaakt; Dimitri drukt zelf op verzenden.
    */
-  function uitnodigen(knop, kanaal) {
+  /** Uitnodiging of tekenlink (functie 'uitnodigen' of 'tekenlink') via mail of WhatsApp. */
+  function uitnodigen(knop, kanaal, functie) {
+    var fn = functie || 'uitnodigen';
     var venster = kanaal === 'whatsapp' ? window.open('', '_blank') : null;
     var herstel = bezig(knop, kanaal === 'mail' ? 'Versturen…' : 'WhatsApp openen…');
-    f.slaWachtendOp().then(function () { return roep('uitnodigen', [huidig.id, kanaal]); }).then(function (r) {
+    f.slaWachtendOp().then(function () { return roep(fn, [huidig.id, kanaal]); }).then(function (r) {
       herstel();
       if (kanaal === 'whatsapp') {
         if (venster) venster.location.href = r.whatsapp_url;
         else window.location.href = r.whatsapp_url;
         toon('WhatsApp geopend met het bericht. Druk daar zelf op verzenden.');
       } else {
-        toon('Uitnodiging verstuurd.');
+        toon(fn === 'tekenlink' ? 'Tekenlink verstuurd.' : 'Uitnodiging verstuurd.');
       }
       toonDetail(r.detail);
-      openMenuBuitenStatuskaart();
+      if (fn !== 'tekenlink') openMenuBuitenStatuskaart();
     }).catch(function (err) {
       herstel();
       if (venster) venster.close();
