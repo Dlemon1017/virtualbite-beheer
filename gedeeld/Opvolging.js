@@ -43,6 +43,22 @@ function herinneringVandaag(p, nu, dagen) {
   return { stap: stap, overslaan: overslaan };
 }
 
+/**
+ * Planning van de herinneringen voor de statuskaart: per stap de dag, de geplande datum (vanaf de uitnodiging) en
+ * wanneer hij is verstuurd (of overgeslagen). Zonder uitnodiging: [].
+ */
+function herinneringPlanning(p, dagen) {
+  var d = dagen || HERINNERING_DAGEN;
+  var van = p.uitnodiging_verstuurd_op;
+  if (!van || typeof van.getTime !== 'function' || isNaN(van.getTime())) return [];
+  return d.map(function (dag, i) {
+    var gepland = beginVanDag_(van);
+    gepland.setDate(gepland.getDate() + dag);
+    var verstuurd = p['herinnering_formulier_' + (i + 1) + '_op'];
+    return { stap: i + 1, dag: dag, gepland: gepland, verstuurd: verstuurd && typeof verstuurd.getTime === 'function' ? verstuurd : null };
+  });
+}
+
 /** Herinneringsdagen uit Instellingen (herinnering_1/2/3_dagen), anders 3, 5, 7. */
 function herinneringDagen(inst) {
   return [1, 2, 3].map(function (n, i) {

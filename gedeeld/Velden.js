@@ -57,7 +57,7 @@ var KEUZES = {
   koppeling: [['tconnect', 'T-Connect'], ['terminal', 'Terminal'], ['pos_api', 'POS-API'], ['other', 'Other']]
 };
 
-function locatieAnders_(g) { return g.locatie_zelfde === 'nee'; }
+function locatieAnders_(g) { return g.locatie_zelfde !== 'ja'; }
 
 /**
  * Formuliervelden per stap, in de volgorde van het TB-formulier.
@@ -146,9 +146,9 @@ function veldZichtbaar(d, g) {
   return typeof d.toon !== 'function' || d.toon(g);
 }
 
-/** Locatieadres zoals het geldt: bij "hetzelfde" (of nog niet gekozen) het vestigingsadres. */
+/** Locatieadres zoals het geldt: alleen met het vinkje "hetzelfde" aan het vestigingsadres. */
 function locatieAdres(p) {
-  var pre = p.locatie_zelfde === 'nee' ? 'locatie_' : 'vestiging_';
+  var pre = p.locatie_zelfde === 'ja' ? 'vestiging_' : 'locatie_';
   return {
     postcode: p[pre + 'postcode'] || '', huisnummer: p[pre + 'huisnummer'] || '', toevoeging: p[pre + 'toevoeging'] || '',
     straat: p[pre + 'straat'] || '', plaats: p[pre + 'plaats'] || ''
@@ -164,7 +164,7 @@ function controleerTijden_(invoer) {
   DAGEN.forEach(function (d) {
     uit[d] = [0, 1].map(function (i) {
       var n = normaliseerTijdvak((t[d] || [])[i]);
-      if (n === null) fout = 'Vul tijden in als 11:30-14:00 (' + DAG_NAAM[d] + ').';
+      if (n === null) fout = 'Controleer de tijden op ' + DAG_NAAM[d] + ': kies een begintijd en een andere eindtijd.';
       return n || '';
     });
     if (uit[d][0] || uit[d][1]) open.push(d);
@@ -262,7 +262,7 @@ function valideerPartnerFormulier(g) {
     w[d.veld] = waarde == null ? '' : waarde;
   });
   // Locatieadres hetzelfde als vestigingsadres: kopie bewaren (voor het TB-formulier en de afstanden).
-  w.locatie_zelfde = g.locatie_zelfde === 'nee' ? 'nee' : 'ja';
+  w.locatie_zelfde = g.locatie_zelfde === 'ja' ? 'ja' : 'nee';
   if (w.locatie_zelfde === 'ja') {
     ['postcode', 'huisnummer', 'toevoeging', 'straat', 'plaats'].forEach(function (k) { w['locatie_' + k] = w['vestiging_' + k]; });
   }

@@ -100,14 +100,14 @@
       }
       if (/_(straat|plaats)$/.test(d.veld) && /^(vestiging|locatie)_/.test(d.veld)) return;
       if (d.soort === 'keuze') w = (KEUZES[d.keuzes].filter(function (k) { return k[0] === p[d.veld]; })[0] || ['', ''])[1];
-      else if (d.soort === 'vinkje') w = p[d.veld] === 'nee' ? 'Nee' : 'Ja';
+      else if (d.soort === 'vinkje') w = p[d.veld] === 'ja' ? 'Ja' : 'Nee';
       else if (d.soort === 'bsn') w = p.bsn_gemaskeerd;
-      else if (d.soort === 'postcoderegels') w = postcodeRegels(p[d.veld]).join(', ');
-      else if (d.soort === 'tijden') {
+      else if (d.soort === 'postcoderegels') w = postcodeRegels(p[d.veld]).join('\n'); // per regel onder elkaar
+      else if (d.soort === 'tijden') { // per dag een eigen regel: "Vr  11:30-14:00 en 16:30-22:00"
         var t = leesTijden(p[d.veld]);
         w = DAGEN.filter(function (dag) { return (t[dag] || []).some(Boolean); }).map(function (dag) {
-          return DAGNAMEN[dag] + ' ' + t[dag].filter(Boolean).join(', ');
-        }).join(' · ');
+          return DAGNAMEN[dag] + '  ' + t[dag].filter(Boolean).join(' en ');
+        }).join('\n');
       } else w = p[d.veld];
       if (d.veld === 'btw_id' && p.btw_vies) w += ' (' + p.btw_vies + ')';
       regels.push([d.label, w]);
@@ -144,18 +144,20 @@
       }
       if (d.soort === 'vinkje') {
         return '<label class="vink-regel"><input type="checkbox" id="' + id + '" data-vinkje="' + esc(d.veld) + '"' +
-          (w !== 'nee' ? ' checked' : '') + dis + '> ' + esc(d.label) + '</label>';
+          (w === 'ja' ? ' checked' : '') + dis + '> ' + esc(d.label) + '</label>'; // standaard uit
       }
-      if (d.soort === 'tijden') {
+      if (d.soort === 'tijden') { // per dag twee blokken, elk "van" en "tot" (kwartieren); opslag blijft "16:30-21:30"
         var t = leesTijden(w);
-        var leegRooster = !DAGEN.some(function (dag) { return (t[dag] || []).some(Boolean); });
-        return '<div class="klein">Laat leeg als je die dag dicht bent.</div><div class="tijden" data-tijden="' + esc(d.veld) + '">' +
-          DAGEN.map(function (dag) {
+        return '<div class="klein">Per dag twee blokken (bijv. middag en avond). Laat leeg als je die dag dicht bent.</div>' +
+          '<div class="tijden" data-tijden="' + esc(d.veld) + '">' +
+          DAGEN.map(function (dag, di) {
             var v = t[dag] || [];
             return '<span class="dag">' + DAGNAMEN[dag] + '</span>' + [0, 1].map(function (i) {
-              return '<input data-dag="' + dag + '" data-i="' + i + '" value="' + esc(v[i] || '') + '" placeholder="' +
-                (leegRooster ? tijdVoorbeeld(i) : '') + '" inputmode="numeric" autocomplete="off" aria-label="' +
-                esc(d.label) + ' ' + DAG_NAAM[dag] + ', tijdvak ' + (i + 1) + '"' + dis + '>';
+              var delen = String(v[i] || '').split('-');
+              var naam = esc(d.label) + ' ' + DAG_NAAM[dag] + ', blok ' + (i + 1);
+              return '<div class="blok" data-blok="' + i + '">' +
+                tijdKiezer(dag, i, 'van', delen.length === 2 ? delen[0] : '', di === 0, naam, dis) + '<span class="streep">–</span>' +
+                tijdKiezer(dag, i, 'tot', delen.length === 2 ? delen[1] : '', di === 0, naam, dis) + '</div>';
             }).join('');
           }).join('') + '</div>';
       }
@@ -173,13 +175,25 @@
       return '<input id="' + id + '" data-veld="' + esc(d.veld) + '" value="' + esc(w) + '"' + type + vb + ' autocomplete="off"' + dis + '>';
     }
 
-    function tijdVoorbeeld(i) { return i ? 'Bijv. 16:30-21:30' : 'Bijv. 11:30-14:00'; }
+    // Kwartieren, beginnend bij 06:00 (na middernacht onderaan: 00:00-05:45).
+    var KWARTIEREN = (function () {
+      var uit = [];
+      for (var m = 6 * 60; m < 30 * 60; m += 15) {
+        var u = Math.floor(m / 60) % 24;
+        uit.push((u < 10 ? '0' : '') + u + ':' + (m % 60 < 10 ? '0' : '') + (m % 60));
+      }
+      return uit;
+    })();
+    var TIJD_VOORBEELD = [{ van: '11:30', tot: '14:00' }, { van: '16:30', tot: '21:30' }];
 
-    /** Voorbeelden in een rooster alleen zolang het hele rooster leeg is. */
-    function werkTijdVoorbeeldenBij(rooster) {
-      var vakken = rooster.querySelectorAll('input');
-      var leeg = !Array.prototype.some.call(vakken, function (x) { return x.value.trim(); });
-      vakken.forEach(function (x) { x.placeholder = leeg ? tijdVoorbeeld(Number(x.getAttribute('data-i'))) : ''; });
+    /** Keuzelijst voor één tijd. Het voorbeeld ("Bijv. 11:30") alleen bij de eerste dag (maandag). */
+    function tijdKiezer(dag, i, kant, waarde, metVoorbeeld, naam, dis) {
+      var lijst = KWARTIEREN.indexOf(waarde) === -1 && waarde ? [waarde].concat(KWARTIEREN) : KWARTIEREN;
+      return '<select data-dag="' + dag + '" data-i="' + i + '" data-kant="' + kant + '" aria-label="' + naam + ', ' + kant + '"' +
+        (waarde ? '' : ' class="leeg"') + dis + '><option value="">' + (metVoorbeeld ? 'Bijv. ' + TIJD_VOORBEELD[i][kant] : kant) +
+        '</option>' + lijst.map(function (x) {
+          return '<option' + (x === waarde ? ' selected' : '') + '>' + x + '</option>';
+        }).join('') + '</select>';
     }
 
     // Postcoderegels (partner): max. 5, elk één postcode of reeks.
@@ -196,7 +210,7 @@
 
     function postcodeRegelHtml(i, waarde, uit) {
       return '<div class="pc-regel"><label for="pc-' + i + '">Postcode ' + (i + 1) + '</label>' +
-        '<input id="pc-' + i + '" data-pcregel="' + i + '" value="' + esc(waarde) + '" inputmode="numeric" autocomplete="off"' +
+        '<input id="pc-' + i + '" data-pcregel="' + i + '" value="' + esc(waarde) + '" type="text" autocomplete="off" autocorrect="off" spellcheck="false"' + // gewoon toetsenbord: "-" en "," nodig
         (i === 0 ? ' placeholder="Bijv. 8231-8245"' : '') + (uit ? ' disabled' : '') + '>' +
         '<div class="fout" data-pcregel-fout="' + i + '"></div><div class="rij-melding" data-pcregel-melding="' + i + '" hidden></div></div>';
     }
@@ -527,15 +541,31 @@
       if (gemaskeerd) { $('v-bsn').value = ''; $('v-bsn').hidden = true; }
     }
 
-    function tijdenUitScherm(veld) {
+    /**
+     * Tijden zoals ze op het scherm staan: {ma: ['11:30-14:00', ''], …}. Een half ingevuld blok (alleen "van" of alleen
+     * "tot") telt als leeg; die staan in `half` (voor de melding bij "Volgende").
+     */
+    function roosterUitScherm(veld) {
       var t = {};
-      qa('[data-tijden="' + veld + '"] input').forEach(function (inp) {
-        var dag = inp.getAttribute('data-dag');
+      var half = [];
+      qa('[data-tijden="' + veld + '"] .blok').forEach(function (blok) {
+        var van = blok.querySelector('[data-kant="van"]');
+        var tot = blok.querySelector('[data-kant="tot"]');
+        var dag = van.getAttribute('data-dag');
         t[dag] = t[dag] || ['', ''];
-        t[dag][Number(inp.getAttribute('data-i'))] = inp.value.trim();
+        if (van.value && tot.value) t[dag][Number(van.getAttribute('data-i'))] = van.value + '-' + tot.value;
+        else if (van.value || tot.value) half.push(dag);
       });
-      return t;
+      return { tijden: t, half: half };
     }
+    function tijdenUitScherm(veld) { return roosterUitScherm(veld).tijden; }
+
+    /** Melding voor een half ingevuld blok, of ''. */
+    f.halveTijden = function (veld) {
+      if (!q('[data-tijden="' + veld + '"]')) return '';
+      var half = roosterUitScherm(veld).half;
+      return half.length ? 'Kies op ' + DAG_NAAM[half[0]] + ' zowel de begin- als de eindtijd (of laat beide leeg).' : '';
+    };
 
     // Adres: straat en plaats automatisch via PDOK na postcode + huisnummer (+ toevoeging).
     var adresTimers = {};
@@ -589,6 +619,33 @@
       var g = Object.assign({}, f.huidig);
       if (f.huidig.heeft_bsn && !g.bsn) g.bsn = '111222333'; // opgeslagen BSN (gemaskeerd): telt als ingevuld
       return valideerPartnerFormulier(g).ok;
+    };
+
+    /**
+     * Controle van één stap (partnerpagina, bij "Volgende"): dezelfde regels als bij versturen, maar alleen voor de
+     * zichtbare velden van deze stap, plus half ingevulde tijden, postcoderegels en rode meldingen die al in beeld staan
+     * (behalve "opslaan lukte niet": een storing van Google houdt de partner niet tegen). Geeft {veld: melding}.
+     */
+    f.controleerStap = function (stap) {
+      var g = Object.assign({}, f.huidig);
+      if (f.huidig.heeft_bsn && !g.bsn) g.bsn = '111222333';
+      var alle = valideerPartnerFormulier(g).fouten;
+      var fouten = {};
+      stap.velden.forEach(function (d) {
+        if (!veldZichtbaar(d, g)) return;
+        if (alle[d.veld]) fouten[d.veld] = alle[d.veld];
+        if (d.soort === 'tijden' && f.halveTijden(d.veld)) fouten[d.veld] = f.halveTijden(d.veld);
+        if (d.soort === 'postcoderegels' && q('[data-pcregel]') && controleerPcRegels().fout && !fouten[d.veld]) {
+          fouten[d.veld] = 'Controleer de postcodes hierboven.';
+        }
+      });
+      Array.prototype.forEach.call(qa('.veld-status.fout'), function (el) {
+        var v = el.getAttribute('data-status');
+        var tekst = el.textContent.trim();
+        if (!v || !tekst || el.closest('[hidden]') || /^Opslaan lukte niet/.test(tekst) || fouten[v]) return;
+        if (stap.velden.some(function (d) { return d.veld === v; })) fouten[v] = tekst;
+      });
+      return fouten;
     };
 
     f.veldLabel = function (v, extra) {
@@ -659,12 +716,6 @@
         f.toonMarkering(f.huidig.markering); // oude melding van een gewiste/gewijzigde regel meteen weg
         bewaar('postcodes_gewenst', pcRegelsUitScherm());
         f.planAfstanden();
-      } else if (el.closest('[data-tijden]')) {
-        werkTijdVoorbeeldenBij(el.closest('[data-tijden]'));
-        var vak = el.closest('[data-tijden]').getAttribute('data-tijden');
-        f.huidig[vak] = tijdenUitScherm(vak);
-        var st = q('[data-status="' + vak + '"]');
-        if (st && st.classList.contains('fout') && el.value.trim() && normaliseerTijdvak(el.value)) zetStatus(vak, '');
       } else if (el.hasAttribute('data-rij-nr')) {
         bewaar('bezorggebied', f.rijenUitScherm());
       }
@@ -695,6 +746,9 @@
         bewaar('postcodes_gewenst', pcRegelsUitScherm(), true);
       } else if (el.closest('[data-tijden]')) {
         var vak = el.closest('[data-tijden]').getAttribute('data-tijden');
+        el.classList.toggle('leeg', !el.value);
+        var st = q('[data-status="' + vak + '"]');
+        if (st && st.classList.contains('fout') && !f.halveTijden(vak)) zetStatus(vak, ''); // melding weg als het nu klopt
         f.huidig[vak] = tijdenUitScherm(vak);
         bewaar(vak, tijdenUitScherm(vak), true);
       } else if (el.hasAttribute('data-rij-nr')) {

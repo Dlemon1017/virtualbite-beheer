@@ -16,9 +16,11 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
-  /** Naam in lijst en kop: naam van de zaak, anders bedrijfsnaam, anders de naam bij het aanmaken. */
+  /** Naam in lijst en kop: naam van de zaak, anders de contactpersoon ("Voornaam Achternaam"). */
   function naamVan(p) {
-    return String(p.zaak_naam || p.bedrijfsnaam || p.naam_start || '').trim();
+    var contact = [p.voornaam_contact, p.achternaam_contact].map(function (x) { return String(x || '').trim(); })
+      .filter(Boolean).join(' ');
+    return String(p.zaak_naam || contact || p.naam_start || '').trim();
   }
   function badge(status) {
     return '<span class="badge b-' + esc(String(status).replace(/\s+/g, '-')) + '">' + esc(status) + '</span>';
@@ -224,7 +226,7 @@
   }
 
   function resetNieuw() {
-    ['n-naam', 'n-voornaam', 'n-email', 'n-mobiel', 'n-stad', 'n-cf'].forEach(function (id) { $(id).value = ''; });
+    ['n-voornaam', 'n-achternaam', 'n-email', 'n-mobiel', 'n-stad', 'n-cf'].forEach(function (id) { $(id).value = ''; });
     nieuwRoute = '';
     cfZelfGewijzigd = false;
     zetKeuze($('n-route'), '');
@@ -242,7 +244,7 @@
     $('nieuw').hidden = false;
     $('nieuwKnop').hidden = true;
     werkAanmakenBij();
-    $('n-naam').focus();
+    $('n-voornaam').focus();
   });
   $('n-annuleer').addEventListener('click', function () { $('nieuw').hidden = true; $('nieuwKnop').hidden = false; });
   $('n-stad').addEventListener('input', function () {
@@ -250,7 +252,7 @@
   });
   $('n-cf').addEventListener('input', function () { cfZelfGewijzigd = $('n-cf').value.trim() !== ''; });
   // Foutmelding weg zodra een veld wordt aangepast.
-  [['n-naam', 'naam'], ['n-voornaam', 'voornaam'], ['n-email', 'email'], ['n-mobiel', 'mobiel'], ['n-stad', 'stad'],
+  [['n-voornaam', 'voornaam'], ['n-achternaam', 'achternaam'], ['n-email', 'email'], ['n-mobiel', 'mobiel'], ['n-stad', 'stad'],
     ['n-cf', 'customer_facing_email']].forEach(function (x) {
     $(x[0]).addEventListener('input', function () {
       $('nieuw').querySelector('[data-fout="' + x[1] + '"]').textContent = '';
@@ -259,8 +261,8 @@
   });
   $('n-test').addEventListener('click', function () {
     var nr = String(Date.now()).slice(-4);
-    $('n-naam').value = 'Testpartner ' + nr;
     $('n-voornaam').value = 'Jan';
+    $('n-achternaam').value = 'Test ' + nr;
     $('n-email').value = 'hallo+test' + nr + '@virtualbite.nl';
     $('n-mobiel').value = '0612345678';
     $('n-stad').value = 'Teststad ' + nr;
@@ -280,7 +282,7 @@
 
   function werkAanmakenBij() {
     var mobiel = $('n-mobiel').value.trim();
-    var klaar = $('n-naam').value.trim().length >= 2 && !!$('n-voornaam').value.trim() && !!normaliseerEmail($('n-email').value) &&
+    var klaar = !!$('n-voornaam').value.trim() && !!$('n-achternaam').value.trim() && !!normaliseerEmail($('n-email').value) &&
       (!mobiel || !!whatsappNummer(mobiel)) && !!$('n-merk').value &&
       $('n-stad').value.trim().length >= 2 && !!normaliseerCfAdres($('n-cf').value, inst.cf_domein) && !!nieuwRoute;
     $('n-maak').classList.toggle('klaar', klaar);
@@ -295,7 +297,7 @@
     form.querySelectorAll('[data-fout]').forEach(function (f) { f.textContent = ''; });
     var herstel = bezig($('n-maak'), 'Aanmaken…');
     roep('aanmaken', [{
-      naam: $('n-naam').value, voornaam: $('n-voornaam').value, email: $('n-email').value, mobiel: $('n-mobiel').value,
+      voornaam: $('n-voornaam').value, achternaam: $('n-achternaam').value, email: $('n-email').value, mobiel: $('n-mobiel').value,
       merk: $('n-merk').value, stad: $('n-stad').value, customer_facing_email: $('n-cf').value, route: nieuwRoute
     }]).then(function (r) {
       herstel();
@@ -335,6 +337,11 @@
     melding: toon
   });
 
+  /** Na uitnodigen of een herinnering: het menu weer open (op de statuskaart staan de knoppen al in beeld). */
+  function openMenuBuitenStatuskaart() {
+    if (!$('statusKaart')) $('beheerMenu').hidden = false;
+  }
+
   function zetHuidig(p) {
     huidig = p;
     f.huidig = p;
@@ -364,37 +371,44 @@
   }
 
   /** Kop met het menu "⋯ Beheer" (alleen voor Dimitri; dicht, zodat een meekijkende partner het niet ziet). */
-  function kopHtml(p, metCf) {
+  function kopHtml(p, metCf, zonderUitnodiging) {
     return '<div class="kop-balk"><button class="terug" data-actie="terug">‹ Terug</button>' +
       '<button type="button" class="klein-knop" data-actie="beheermenu" aria-expanded="false" aria-controls="beheerMenu">⋯ Beheer</button></div>' +
       '<div class="kaart beheermenu" id="beheerMenu" hidden><h2>Beheer (alleen Virtualbite)</h2>' +
-      uitnodigingHtml(p) + partnerKaartVelden(p, !p.mag_bewerken, !metCf) + '</div>' +
+      (zonderUitnodiging ? '' : uitnodigingHtml(p)) + partnerKaartVelden(p, !p.mag_bewerken, !metCf) + '</div>' +
       '<div class="kop-detail"><div><p class="merk">' + esc(p.id) + ' · ' + esc(p.merk || '') + ' · ' +
       (p.route === 'samen' ? 'samen invullen' : 'partner vult zelf in') + '</p><h1>' + esc(naamVan(p) || p.id) + '</h1></div>' +
       badge(p.status) + '</div>';
   }
 
   /** Uitnodigen via mail of WhatsApp en "Herinnering nu sturen" (zolang het formulier nog niet is ingevuld). */
-  function uitnodigingHtml(p) {
-    var kan = ['Aangemaakt', 'Samen invullen', 'Uitgenodigd', 'Deels ingevuld', 'Terug bij partner'].indexOf(p.status) !== -1;
-    if (!kan) return '';
-    var al = !!p.uitnodiging_verstuurd_op;
-    var info = al ? 'Uitgenodigd op ' + esc(p.uitnodiging_verstuurd_op) + (p.laatst_uitgenodigd_op && p.laatst_uitgenodigd_op !==
-      p.uitnodiging_verstuurd_op ? ', laatst op ' + esc(p.laatst_uitgenodigd_op) : '') + ' via ' +
+  function uitnodigingInfo(p) {
+    return p.uitnodiging_verstuurd_op ? 'Uitgenodigd op ' + p.uitnodiging_verstuurd_op + (p.laatst_uitgenodigd_op &&
+      p.laatst_uitgenodigd_op !== p.uitnodiging_verstuurd_op ? ', laatst op ' + p.laatst_uitgenodigd_op : '') + ' via ' +
       (p.uitgenodigd_via === 'whatsapp' ? 'WhatsApp' : 'mail') + '.' : 'Nog niet uitgenodigd.';
-    return '<div class="uitnodigen"><div class="label">Partner zelf laten invullen</div><div class="klein">' + info + '</div>' +
-      '<div class="knoppen-rij">' +
+  }
+
+  function uitnodigingKnoppen(p) {
+    var al = !!p.uitnodiging_verstuurd_op;
+    return '<div class="knoppen-rij">' +
       '<button type="button" class="klein-knop" data-actie="uitnodigen-mail">' + (al ? 'Opnieuw versturen via mail' : 'Uitnodigen via mail') + '</button>' +
       '<button type="button" class="klein-knop" data-actie="uitnodigen-whatsapp">' + (al ? 'Opnieuw versturen via WhatsApp' :
         'Uitnodigen via WhatsApp') + '</button>' +
       (['Uitgenodigd', 'Deels ingevuld'].indexOf(p.status) !== -1 ?
-        '<button type="button" class="klein-knop" data-actie="herinnering-nu">Herinnering nu sturen</button>' : '') +
-      '</div></div>';
+        '<button type="button" class="klein-knop" data-actie="herinnering-nu">Herinnering nu sturen</button>' : '') + '</div>';
+  }
+
+  function uitnodigingHtml(p) {
+    var kan = ['Aangemaakt', 'Samen invullen', 'Uitgenodigd', 'Deels ingevuld', 'Terug bij partner'].indexOf(p.status) !== -1;
+    if (!kan) return '';
+    return '<div class="uitnodigen"><div class="label">Partner zelf laten invullen</div><div class="klein">' +
+      esc(uitnodigingInfo(p)) + '</div>' + uitnodigingKnoppen(p) + '</div>';
   }
 
   function toonDetail(p) {
     zetHuidig(p);
-    if (FORMULIER_STATUSSEN.indexOf(p.status) !== -1) toonFormulier(p);
+    if (toontStatuskaart(p)) toonStatuskaart(p);
+    else if (FORMULIER_STATUSSEN.indexOf(p.status) !== -1) toonFormulier(p);
     else toonControle(p);
     if (p.markering && !p.markering.actueel && heeftPostcodes(p)) f.planAfstanden(true);
   }
@@ -402,6 +416,51 @@
   function heeftPostcodes(p) {
     return !!String(p.postcodes_gewenst || '').trim() ||
       f.leesRijen(p.bezorggebied).some(function (r) { return String(r.postcodes || '').trim(); });
+  }
+
+  // ---------- Statuskaart (partner vult zelf in, nog niet verstuurd) ----------
+  var STATUSKAART_STATUSSEN = ['Aangemaakt', 'Uitgenodigd', 'Deels ingevuld'];
+
+  function toontStatuskaart(p) {
+    return p.route === 'zelf' && STATUSKAART_STATUSSEN.indexOf(p.status) !== -1;
+  }
+
+  /** Eerste stap die nog niet compleet is (zelfde regels als de partnerpagina); -1 = alles compleet. */
+  function stapVanPartner(p) {
+    var g = Object.assign({}, p);
+    if (p.heeft_bsn) g.bsn = '111222333';
+    var fouten = valideerPartnerFormulier(g).fouten;
+    for (var i = 0; i < FORMULIER_STAPPEN.length; i++) {
+      if (FORMULIER_STAPPEN[i].velden.some(function (d) { return fouten[d.veld]; })) return i;
+    }
+    return -1;
+  }
+
+  function toonStatuskaart(p) {
+    var regel = function (label, waarde) {
+      return '<div><dt>' + esc(label) + '</dt><dd>' + esc(waarde) + '</dd></div>';
+    };
+    var n = FORMULIER_STAPPEN.length;
+    var stap = stapVanPartner(p);
+    var voortgang = p.status !== 'Deels ingevuld' ? 'Nog niet begonnen' :
+      stap === -1 ? 'Alles ingevuld, nog niet verstuurd' : 'Stap ' + (stap + 1) + ' van ' + n + ' (' + FORMULIER_STAPPEN[stap].titel + ')';
+    var herinneringen = (p.herinneringen || []).map(function (h) {
+      return 'Dag ' + h.dag + ': ' + (h.verstuurd ? 'verstuurd ' + h.verstuurd : 'gepland ' + h.gepland);
+    });
+    if (p.herinnering_handmatig_op) herinneringen.push('Handmatig: verstuurd ' + p.herinnering_handmatig_op);
+    var h = kopHtml(p, true, true) +
+      '<section class="kaart" id="statusKaart"><h2>Partner vult zelf in</h2><dl>' +
+      regel('Status', p.status) +
+      regel('Uitnodiging', uitnodigingInfo(p)) +
+      regel('Voortgang', voortgang) +
+      (p.formulier_opgeslagen_op ? regel('Laatst opgeslagen', p.formulier_opgeslagen_op) : '') +
+      (herinneringen.length ? '<div><dt>Herinneringen</dt><dd>' + herinneringen.map(esc).join('<br>') + '</dd></div>' :
+        regel('Herinneringen', p.uitnodiging_verstuurd_op ? 'Geen gepland' : 'Starten na de uitnodiging (dag 3, 5 en 7)')) +
+      '</dl>' + uitnodigingKnoppen(p) + '</section>' +
+      '<details class="kaart ingevuld"><summary>Bekijk ingevulde gegevens</summary>' +
+      FORMULIER_STAPPEN.map(function (st) { return '<h3 class="tussenkop">' + esc(st.titel) + '</h3>' + VBSamenvatting(st, p); }).join('') +
+      '</details>';
+    $('detailInhoud').innerHTML = h;
   }
 
   // ---------- Scherm 1: formulier (samen invullen) ----------
@@ -428,8 +487,9 @@
     var merken = (laatsteMerken || []).map(function (m) {
       return '<option value="' + esc(m.naam) + '"' + (m.naam === p.merk ? ' selected' : '') + '>' + esc(m.naam) + '</option>';
     }).join('');
-    return veld('naam_start', 'Naam bij aanmaken (intern)') +
-      veld('voornaam_contact', 'Voornaam contactpersoon', '', '<div class="klein">Gebruikt in mails en WhatsApp ("Hoi …").</div>') +
+    return veld('voornaam_contact', 'Voornaam', '', '<div class="klein">Van de contactpersoon; gebruikt in mails en WhatsApp ' +
+        '("Hoi …").</div>') +
+      veld('achternaam_contact', 'Achternaam') +
       veld('email', 'E-mail partner', mail) +
       veld('mobiel_partner', 'Mobiel partner', ' type="tel" inputmode="tel" placeholder="Bijv. 0612345678"', '<div class="klein">Nodig ' +
         'voor uitnodigen via WhatsApp.</div>') +
@@ -596,7 +656,7 @@
     if (actie === 'herinnering-nu') {
       var herstelH = bezig(knop, 'Versturen…');
       f.slaWachtendOp().then(function () { return roep('herinneringNu', [huidig.id]); }).then(function (r) {
-        herstelH(); toon('Herinnering verstuurd.'); toonDetail(r); $('beheerMenu').hidden = false;
+        herstelH(); toon('Herinnering verstuurd.'); toonDetail(r); openMenuBuitenStatuskaart();
       }).catch(function (err) { herstelH(); toon(err.message, true); });
       return;
     }
@@ -668,7 +728,7 @@
         toon('Uitnodiging verstuurd.');
       }
       toonDetail(r.detail);
-      $('beheerMenu').hidden = false;
+      openMenuBuitenStatuskaart();
     }).catch(function (err) {
       herstel();
       if (venster) venster.close();
