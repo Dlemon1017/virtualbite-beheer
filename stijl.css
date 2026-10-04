@@ -86,7 +86,7 @@ input:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--foc
 .veld-status.ok { color: var(--groen); }
 .veld-status.fout { color: var(--rood); }
 .tijden { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); gap: 6px 10px; align-items: center; }
-.tijden .dag { font-size: 14px; color: var(--zacht); }
+.tijden .dag { font-size: 14px; color: var(--zacht); align-self: end; padding-bottom: 13px; }
 .tijden .blok { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 4px; align-items: end; }
 .tijden .streep { color: var(--zacht); padding-bottom: 12px; }
 .tijden .kiezer { display: flex; flex-direction: column; margin: 0; min-width: 0; font-weight: 400; }
