@@ -617,7 +617,24 @@
       stappen.map(function (x) { return '<div><dt>' + esc(x[1]) + '</dt><dd>' + esc(stand(v[x[0]])) + '</dd></div>'; }).join('') +
       '<div><dt>Stukken</dt><dd>' + [link(s.overeenkomst, 'Overeenkomst (getekend)'), link(s.tb, 'TB-formulier (getekend)'),
         link(s.zwh, 'Zo werkt het'), link(s.av, 'Algemene Partnervoorwaarden'), link(s.map, 'Map in Drive')].filter(Boolean).join('<br>') +
-      '</dd></div></dl></section>';
+      '</dd></div></dl></section>' + planningKaartHtml(p.planning);
+  }
+
+  /** Kaart "Onboarding en training": wat de partner heeft gekozen (agendawijzigingen van jou worden overgenomen). */
+  function planningKaartHtml(pl) {
+    if (!pl) return '';
+    var regel = function (label, waarde) { return '<div><dt>' + esc(label) + '</dt><dd>' + esc(waarde) + '</dd></div>'; };
+    var h = '<section class="kaart" id="planKaart"><h2>Onboarding en training</h2>';
+    if (pl.verwijderd) h += '<div class="melding-blok mb-let">Een afspraak is uit je agenda verwijderd. Laat de partner opnieuw kiezen of plan ' +
+      'zelf.</div>';
+    h += '<dl>' + (pl.gepland.length ? regel('Gepland', pl.gepland.join('\n')) + regel('Gekozen op', pl.gepland_op) :
+      regel('Gepland', 'Nog niet gekozen') + regel('Kiezen', 'Van ' + pl.vanaf + ' tot en met ' + pl.tot) +
+      regel('Planlink', 'Verstuurd ' + pl.link_op) +
+      regel('Herinneringen', pl.herinneringen.length ? pl.herinneringen.join('\n') : 'Dag 2 en 4 (partner en jij), dag 6 (alleen jij)')) +
+      '</dl><div class="knoppen-rij">' +
+      (pl.link ? '<a class="klein-knop" href="' + esc(pl.link) + '" target="_blank" rel="noopener">Planpagina openen</a>' : '') +
+      '<button type="button" class="klein-knop" data-actie="plan-opnieuw">Opnieuw laten kiezen</button></div></section>';
+    return h;
   }
 
   function tekenKaartHtml(p) {
@@ -848,6 +865,13 @@
       f.slaWachtendOp().then(function () { return roep('herinneringNu', [huidig.id]); }).then(function (r) {
         herstelH(); toon('Herinnering verstuurd.'); toonDetail(r); openMenuBuitenStatuskaart();
       }).catch(function (err) { herstelH(); toon(err.message, true); });
+      return;
+    }
+    if (actie === 'plan-opnieuw') {
+      bevestig('Opnieuw laten kiezen?', 'De afspraken (en reistijden) worden verwijderd; de partner krijgt een annulering van ' +
+        'Google Agenda en een mail om opnieuw te kiezen.', 'Opnieuw laten kiezen').then(function (ja) {
+        if (ja) statusActie(knop, 'planOpnieuw', 'Bezig…', 'De partner krijgt een mail om opnieuw te kiezen.');
+      });
       return;
     }
     if (actie === 'terug-controle') {

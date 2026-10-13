@@ -112,6 +112,7 @@ input:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--foc
 .dag-regel .streep { padding-bottom: 12px; }
 .bsn-rij { display: flex; gap: 8px; align-items: center; }
 .bsn-rij .waarde { flex: 1; font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+a.klein-knop { display: inline-flex; align-items: center; text-decoration: none; }
 .klein-knop { width: auto; min-height: 40px; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--lijn);
   background: transparent; color: var(--tekst); font-weight: 600; font-size: 14px; }
 .melding-blok { border-radius: 12px; padding: 12px 14px; font-size: 14px; margin-top: 16px; }
