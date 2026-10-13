@@ -57,6 +57,28 @@
     });
   }
 
+  /** Keuzevenster: opties [[waarde, tekst], …] onder elkaar plus Annuleer. Geeft de gekozen waarde, of null. */
+  function kies(titel, tekst, opties) {
+    return new Promise(function (klaar) {
+      var achter = document.createElement('div');
+      achter.className = 'dialoog-achter';
+      achter.innerHTML = '<div class="dialoog" role="dialog" aria-modal="true" aria-labelledby="d-titel">' +
+        '<h2 id="d-titel">' + esc(titel) + '</h2><p>' + esc(tekst) + '</p><div class="dialoog-knoppen onder-elkaar">' +
+        opties.map(function (o) { return '<button class="knop" data-k="' + esc(o[0]) + '">' + esc(o[1]) + '</button>'; }).join('') +
+        '<button class="knop licht" data-k="">Annuleer</button></div></div>';
+      function sluit(uitkomst) { achter.remove(); document.removeEventListener('keydown', toets); klaar(uitkomst || null); }
+      function toets(e) { if (e.key === 'Escape') sluit(null); }
+      achter.addEventListener('click', function (e) {
+        if (e.target === achter) sluit(null);
+        var k = e.target.getAttribute('data-k');
+        if (k !== null) sluit(k);
+      });
+      document.addEventListener('keydown', toets);
+      document.body.appendChild(achter);
+      achter.querySelector('[data-k]').focus();
+    });
+  }
+
   function bezig(knop, tekst) {
     var oud = knop.innerHTML;
     knop.disabled = true;
@@ -627,8 +649,10 @@
     var h = '<section class="kaart" id="planKaart"><h2>Onboarding en training</h2>';
     if (pl.verwijderd) h += '<div class="melding-blok mb-let">Een afspraak is uit je agenda verwijderd. Laat de partner opnieuw kiezen of plan ' +
       'zelf.</div>';
-    h += '<dl>' + (pl.gepland.length ? regel('Gepland', pl.gepland.join('\n')) + regel('Gekozen op', pl.gepland_op) :
-      regel('Gepland', 'Nog niet gekozen') + regel('Kiezen', 'Van ' + pl.vanaf + ' tot en met ' + pl.tot) +
+    var nogTeKiezen = pl.soort === 'onboarding' ? 'Onboarding' : pl.soort === 'training' ? 'Training' : 'Onboarding en training';
+    h += '<dl>' + (!pl.open ? regel('Gepland', pl.gepland.join('\n')) + regel('Gekozen op', pl.gepland_op) :
+      regel('Gepland', pl.gepland.length ? pl.gepland.join('\n') : 'Nog niet gekozen') + regel('Nog te kiezen', nogTeKiezen) +
+      regel('Kiezen', 'Van ' + pl.vanaf + ' tot en met ' + pl.tot) +
       regel('Planlink', 'Verstuurd ' + pl.link_op) +
       regel('Herinneringen', pl.herinneringen.length ? pl.herinneringen.join('\n') : 'Dag 2 en 4 (partner en jij), dag 6 (alleen jij)')) +
       '</dl><div class="knoppen-rij">' +
@@ -868,9 +892,18 @@
       return;
     }
     if (actie === 'plan-opnieuw') {
-      bevestig('Opnieuw laten kiezen?', 'De afspraken (en reistijden) worden verwijderd; de partner krijgt een annulering van ' +
-        'Google Agenda en een mail om opnieuw te kiezen.', 'Opnieuw laten kiezen').then(function (ja) {
-        if (ja) statusActie(knop, 'planOpnieuw', 'Bezig…', 'De partner krijgt een mail om opnieuw te kiezen.');
+      kies('Wat moet opnieuw?', 'De gekozen afspraak (bij de training ook de reistijden) wordt verwijderd; de partner krijgt een ' +
+        'annulering van Google Agenda en een mail om opnieuw te kiezen. De andere afspraak blijft staan.',
+        [['onboarding', 'Onboarding'], ['training', 'Training'], ['beide', 'Allebei']]).then(function (soort) {
+        if (!soort) return;
+        var herstelP = bezig(knop, 'Bezig…');
+        var pid = huidig.id;
+        roep('planOpnieuw', [pid, soort]).then(function (r) {
+          herstelP();
+          toon('De partner krijgt een mail om ' + (soort === 'beide' ? 'onboarding en training' : 'de ' + soort) + ' opnieuw te kiezen.');
+          zetHuidig(r);
+          toonDetail(r);
+        }).catch(function (err) { herstelP(); toon(err.message, true); });
       });
       return;
     }
