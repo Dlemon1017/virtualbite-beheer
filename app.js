@@ -22,6 +22,8 @@
       .filter(Boolean).join(' ');
     return String(p.zaak_naam || contact || p.naam_start || '').trim();
   }
+  function testTag() { return '<span class="tag-test" title="Testpartner: alles gaat naar hallo@">Test</span>'; }
+
   function badge(status) {
     return '<span class="badge b-' + esc(String(status).replace(/\s+/g, '-')) + '">' + esc(status) + '</span>';
   }
@@ -223,7 +225,7 @@
     $('telling').textContent = n === 1 ? '1 partner' : n + ' partners';
     $('lijst').innerHTML = partners.length ? partners.map(function (p) {
       return '<button class="item' + (p.status === 'Geannuleerd' ? ' uit' : '') + '" data-id="' + esc(p.id) + '">' +
-        '<div class="wie"><div class="naam">' + esc(p.naam || p.id) + '</div>' +
+        '<div class="wie"><div class="naam">' + esc(p.naam || p.id) + (p.test ? testTag() : '') + '</div>' +
         '<div class="wanneer">' + esc([p.id, p.stad, p.customer_facing_email].filter(Boolean).join(' · ')) + '</div></div>' +
         badge(p.status) + '</button>';
     }).join('') : '<div class="leeg">Nog geen partners. Maak er een aan met "Nieuwe partner".</div>';
@@ -242,7 +244,6 @@
       inst = o.instellingen || inst;
       zetOpeningsMinimum(inst.openings_minimum);
       $('testbalk').hidden = !o.testmodus;
-      $('n-test').hidden = !o.testmodus;
       vulMerken(o.merken);
       laatsteMerken = o.merken || [];
       lijstCache = o.partners;
@@ -279,6 +280,7 @@
     cfZelfGewijzigd = false;
     zetKeuze($('n-route'), '');
     zetKeuze($('n-kanaal'), 'mail');
+    $('n-testpartner').checked = false;
     $('nieuw').querySelectorAll('[data-fout]').forEach(function (f) { f.textContent = ''; });
   }
 
@@ -319,6 +321,7 @@
     $('n-cf').value = cfVoorstel($('n-stad').value, inst.cf_domein);
     nieuwRoute = 'samen';
     zetKeuze($('n-route'), 'samen');
+    $('n-testpartner').checked = true;
     $('nieuw').querySelectorAll('[data-fout]').forEach(function (f) { f.textContent = ''; });
   });
   $('n-kanaal').addEventListener('click', function (e) {
@@ -355,7 +358,7 @@
     roep('aanmaken', [{
       voornaam: $('n-voornaam').value, achternaam: $('n-achternaam').value, email: $('n-email').value, mobiel: $('n-mobiel').value,
       merk: $('n-merk').value, stad: $('n-stad').value, customer_facing_email: $('n-cf').value, route: nieuwRoute,
-      kanaal: nieuwKanaal
+      kanaal: nieuwKanaal, test: $('n-testpartner').checked
     }]).then(function (r) {
       herstel();
       if (r.fouten) {
@@ -463,7 +466,8 @@
       '<div class="kaart beheermenu" id="beheerMenu" hidden><h2>Beheer (alleen Virtualbite)</h2>' +
       (zonderUitnodiging ? '' : uitnodigingHtml(p)) + partnerKaartVelden(p, !p.mag_bewerken, !metCf) + '</div>' +
       '<div class="kop-detail"><div><p class="merk">' + esc(p.id) + ' · ' + esc(p.merk || '') + ' · ' +
-      (p.route === 'samen' ? 'samen invullen' : 'partner vult zelf in') + '</p><h1>' + esc(naamVan(p) || p.id) + '</h1></div>' +
+      (p.route === 'samen' ? 'samen invullen' : 'partner vult zelf in') + '</p><h1>' + esc(naamVan(p) || p.id) +
+      (p.test ? testTag() : '') + '</h1></div>' +
       badge(p.status) + '</div>';
   }
 
@@ -631,7 +635,7 @@
     var stappen = [['pdf', 'Getekende overeenkomst (PDF)'], ['tb', 'TB-formulier met handtekening'], ['mail', 'Mail aan partner (cc jou)'],
       ['tbmail', 'Aanmelding Thuisbezorgd'], ['koppel', 'Customer-facing mail'], ['melding', 'Melding aan jou']];
     var stand = function (x) {
-      return x === 'ok' ? '✓' : x === 'nvt' ? 'n.v.t.' : x === 'fout' ? 'mislukt (wordt dagelijks opnieuw geprobeerd)' : 'bezig…';
+      return x === 'ok' ? '✓' : x === 'nvt' ? 'n.v.t.' : x === 'uit' ? 'niet verstuurd (uitgezet)' : x === 'fout' ? 'mislukt (wordt dagelijks opnieuw geprobeerd)' : 'bezig…';
     };
     var link = function (url, tekst) { return url ? '<a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(tekst) + '</a>' : ''; };
     var s = p.stukken || {};
@@ -766,7 +770,7 @@
       veld('customer_facing_email', 'Customer-facing e-mailadres', '<input id="v-customer_facing_email" data-veld="customer_facing_email" ' +
         'type="email" inputmode="email" autocapitalize="off" value="' + esc(p.customer_facing_email) + '"' + dis + '>',
         '<div class="klein">Moet uniek zijn over alle partners.</div>') +
-      merkenVelden(p, uit) +
+      merkenVelden(p, uit) + tbAanmeldenVeld(p, uit) +
       '<div class="veld"><div class="label">Openingstijden</div><div class="klein">Minimaal ' + esc(openingsMinimum()) +
         ' op vrijdag, zaterdag, zondag en minimaal 2 andere dagen.</div>' +
         '<div id="uitzondering"' + (heeftUitzondering ? '' : ' hidden') + '>' +
@@ -780,6 +784,18 @@
         '<div class="klein" id="afstandInfo" hidden></div><div class="klein afstand-status" id="afstandStatus" hidden></div>' +
         (uit ? '' : '<button type="button" class="klein-knop mt" data-actie="afstanden">Afstanden opnieuw berekenen</button>') +
         '<div class="veld-status" data-status="bezorggebied"></div></div>';
+  }
+
+  /** Schakelaar "TB-aanmelding versturen" (standaard aan): uit = na tekenen geen aanmeldmail naar Thuisbezorgd/JET. */
+  function tbAanmeldenVeld(p, uit) {
+    var aan = p.tb_aanmelden !== 'nee';
+    var dis = uit ? ' disabled' : '';
+    return '<div class="veld" data-rij="tb_aanmelden"><div class="label">TB-aanmelding versturen</div>' +
+      '<div class="keuze" data-keuze="tb_aanmelden" role="group" aria-label="TB-aanmelding versturen">' +
+      [['ja', 'Aan'], ['nee', 'Uit']].map(function (k) {
+        return '<button type="button" data-waarde="' + k[0] + '" aria-pressed="' + (aan === (k[0] === 'ja')) + '"' + dis + '>' + k[1] + '</button>';
+      }).join('') + '</div><div class="klein">Uit: na het tekenen gaat er geen aanmeldmail naar Thuisbezorgd (bijv. al aangemeld). Het ' +
+      'TB-formulier gaat wel mee in de mail aan de partner.</div><div class="veld-status" data-status="tb_aanmelden"></div></div>';
   }
 
   /** Andere virtuele merken (alleen Virtualbite): standaard Nee → "GEEN" in de overeenkomst; bij Ja welke merken. */
