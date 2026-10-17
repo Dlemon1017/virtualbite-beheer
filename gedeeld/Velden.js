@@ -81,7 +81,7 @@ var KEUZES = {
 
 /**
  * Formuliervelden per stap, in de volgorde van het TB-formulier.
- * soort: tekst | cijfers | email | telefoon | kvk | btw | bsn | postcode | huisnummer | keuze | vinkje | tijden |
+ * soort: tekst | naam (hoofdletter per woord) | cijfers | email | telefoon | kvk | btw | bsn | postcode | huisnummer | keuze | vinkje | tijden |
  *        postcoderegels (max. 5 regels, elk één postcode of reeks; opgeslagen als tekst met een regel per postcode).
  * verplicht: true/false of een functie (g) => boolean. toon: functie (g) => boolean (verborgen = niet bewaren,
  * behalve het locatieadres: dat wordt dan een kopie van het vestigingsadres).
@@ -90,8 +90,8 @@ var KEUZES = {
 var FORMULIER_STAPPEN = [
   { titel: 'Bedrijfsgegevens', velden: [
     { veld: 'rechtsvorm', label: 'Rechtsvorm', soort: 'keuze', keuzes: 'rechtsvorm', verplicht: true },
-    { veld: 'bedrijfsnaam', label: 'Officiële bedrijfsnaam', soort: 'tekst', verplicht: true, voorbeeld: 'Bijv. Pizzeria Roma B.V.' },
-    { veld: 'eigenaar_naam', label: 'Eigenaar / bestuurder', soort: 'tekst', verplicht: true, voorbeeld: 'Bijv. Jan Jansen' },
+    { veld: 'bedrijfsnaam', label: 'Officiële bedrijfsnaam', soort: 'naam', verplicht: true, voorbeeld: 'Bijv. Pizzeria Roma B.V.' },
+    { veld: 'eigenaar_naam', label: 'Eigenaar / bestuurder', soort: 'naam', persoon: true, verplicht: true, voorbeeld: 'Bijv. Jan Jansen' },
     // Telefoon zaak, contactpersoon (+ mobiel) en het volledige vestigingsadres niet meer gevraagd (17-10-2026): ze stonden
     // alleen op blad 1 van het TB-formulier. De overeenkomst noemt alleen de vestigingsplaats.
     { veld: 'vestiging_plaats', label: 'Vestigingsplaats (zoals bij de KvK)', soort: 'tekst', verplicht: true, voorbeeld: 'Bijv. Lelystad' },
@@ -102,7 +102,7 @@ var FORMULIER_STAPPEN = [
     // Restaurant-ID, BSN, EU-vestiging en PEP niet meer gevraagd (17-10-2026): blad 1 van het TB-formulier is Virtualbite.
   ] },
   { titel: 'Locatie', velden: [
-    { veld: 'zaak_naam', label: 'Naam van de zaak', soort: 'tekst', verplicht: true, voorbeeld: 'Bijv. Pizzeria Roma' },
+    { veld: 'zaak_naam', label: 'Naam van de zaak', soort: 'naam', verplicht: true, voorbeeld: 'Bijv. Pizzeria Roma' },
     { veld: 'locatie_postcode', label: 'Postcode', soort: 'postcode', voorbeeld: 'Bijv. 1234 AB', kop: 'Locatieadres (waar de keuken is)',
       rij: 'locatie-nr', verplicht: true },
     { veld: 'locatie_huisnummer', label: 'Huisnummer', soort: 'huisnummer', voorbeeld: 'Bijv. 12', rij: 'locatie-nr', verplicht: true },
@@ -110,7 +110,7 @@ var FORMULIER_STAPPEN = [
     { veld: 'locatie_straat', label: 'Straat', soort: 'tekst', voorbeeld: 'Wordt automatisch ingevuld', verplicht: true },
     { veld: 'locatie_plaats', label: 'Plaats', soort: 'tekst', voorbeeld: 'Wordt automatisch ingevuld', verplicht: true },
     { veld: 'locatie_telefoon', label: 'Telefoonnummer locatie', soort: 'telefoon', verplicht: true, voorbeeld: 'Bijv. 0201234567' },
-    { veld: 'locatie_contactpersoon', label: 'Contactpersoon locatie', soort: 'tekst', verplicht: true, voorbeeld: 'Bijv. Jan Jansen' },
+    { veld: 'locatie_contactpersoon', label: 'Contactpersoon locatie', soort: 'naam', persoon: true, verplicht: true, voorbeeld: 'Bijv. Jan Jansen' },
     { veld: 'locatie_mobiel', label: 'Mobiel contactpersoon locatie', soort: 'telefoon', verplicht: true, voorbeeld: 'Bijv. 0612345678' }
   ] },
   { titel: 'Overzicht en services', velden: [
@@ -247,7 +247,8 @@ function controleerVeld(d, tekst) {
   if (d.soort === 'huisnummer') fout = n(normaliseerHuisnummer, 'Vul alleen het huisnummer in (cijfers).');
   if (d.soort === 'cijfers') fout = n(normaliseerCijfers, 'Alleen cijfers.');
   if (d.soort === 'kvk') fout = n(normaliseerKvk, 'Een KvK-nummer heeft 8 cijfers.');
-  if (d.soort === 'btw') fout = n(normaliseerBtwId, 'Vul het btw-id in als NL123456789B01.');
+  if (d.soort === 'btw') { fout = normaliseerBtwId(tekst) ? '' : 'Vul het btw-id in als NL123456789B01.'; w = schoonBtwId(tekst); }
+  if (d.soort === 'naam') w = hoofdletters(tekst, d.persoon);
   if (d.soort === 'bsn') fout = n(normaliseerBsn, 'Dit BSN klopt niet. Controleer de 9 cijfers.');
   if (d.soort === 'keuze' && !KEUZES[d.keuzes].some(function (k) { return k[0] === tekst; })) fout = 'Maak een keuze.';
   if (d.soort === 'vinkje' && ['ja', 'nee'].indexOf(tekst) === -1) fout = 'Ongeldige keuze.';
@@ -256,7 +257,7 @@ function controleerVeld(d, tekst) {
     fout = r.fout;
     w = r.waarde;
   }
-  return { waarde: fout ? tekst : w, fout: fout };
+  return { waarde: fout && d.soort !== 'btw' ? tekst : w, fout: fout }; // btw: ook half ingevuld al opgeschoond
 }
 
 /**

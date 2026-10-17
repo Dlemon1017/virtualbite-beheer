@@ -49,6 +49,27 @@ function normaliseerKvk(kvk) {
 }
 
 /** Btw-id: NL + 9 cijfers + B + 2 cijfers, bijv. NL123456789B01; spaties en punten mogen. Ongeldig → ''. */
+/**
+ * Namen met een hoofdletter per woord (besluit 17-10-2026): "jan jansen" → "Jan Jansen", "pizza roma" → "Pizza Roma".
+ * Alleen de eerste letter van elk woord (ook na een streepje); de rest blijft zoals getypt ("B.V.", "McDonald").
+ * persoon = true (eigenaar, contactpersoon): tussenvoegsels (van, de, der, den, ten, ter, het, 't) klein, behalve als eerste
+ * woord. Bedrijfs- en zaaknamen: elk woord met een hoofdletter ("Snackbar De Hoek"), alleen "h.o.d.n." blijft klein.
+ */
+var KLEINE_WOORDEN = ['van', 'de', 'der', 'den', 'ten', 'ter', 'het', "'t", 'h.o.d.n.'];
+
+function hoofdletters(tekst, persoon) {
+  return String(tekst == null ? '' : tekst).replace(/\s+/g, ' ').trim().split(' ').map(function (w, i) {
+    if (w.toLowerCase() === 'h.o.d.n.') return 'h.o.d.n.';
+    if (persoon && i > 0 && KLEINE_WOORDEN.indexOf(w.toLowerCase()) !== -1) return w.toLowerCase();
+    return w.replace(/(^|-)([a-zà-ÿ])/g, function (m, a, b) { return a + b.toUpperCase(); });
+  }).join(' ');
+}
+
+/** Btw-nummer zoals getypt maar in hoofdletters en zonder spaties, punten of streepjes. */
+function schoonBtwId(btw) {
+  return String(btw || '').replace(/[\s.-]/g, '').toUpperCase();
+}
+
 function normaliseerBtwId(btw) {
   var s = String(btw || '').replace(/[\s.-]/g, '').toUpperCase();
   return /^NL\d{9}B\d{2}$/.test(s) ? s : '';

@@ -79,9 +79,32 @@ function koppelCustomerFacingMail(partner, opties) {
   }
   cfHerhaal_(function () { AdminGroupsSettings.Groups.patch(CF_INSTELLINGEN, adres); }); // nieuwe groep: soms even 404
   [[CF_EIGENAAR, 'OWNER'], [doel, 'MEMBER']].concat(CF_VASTE_LEDEN.map(function (x) { return [x, 'MEMBER']; }))
-    .forEach(function (l) { cfHerhaal_(function () { cfLid_(adres, l[0], l[1]); }); });
+    .forEach(function (l) {
+      try { cfHerhaal_(function () { cfLid_(adres, l[0], l[1]); }); } catch (e) {
+        throw new Error('Lid ' + maskeerEmail_(l[0]) + ' (' + l[1] + '): ' + (e && e.message || e));
+      }
+    });
   schrijfLog(partner.id, 'customer-facing e-mail', 'gekoppeld: ' + adres + ' stuurt door naar het eigen adres van de partner');
   return { gekoppeld: true };
+}
+
+/**
+ * Bij Akkoord: bestaat het customer-facing adres al als groep in Google Workspace (en niet door de tool voor deze
+ * partner gemaakt)? Geeft een melding of ''. Lukt de controle niet (storing), dan '' (de koppelstap na tekenen controleert
+ * opnieuw en meldt het dan).
+ */
+function cfWorkspaceFout_(p) {
+  var adres = normaliseerCfAdres(p.customer_facing_email, cfDomein_());
+  if (!adres || cfKoppelen_() === 'uit') return '';
+  try {
+    var groep = cfGroep_(adres);
+    if (!groep || String(groep.description || '').indexOf('Contracttool ' + p.id) !== -1) return '';
+    return 'Dit adres bestaat al als groep in Google Workspace' + (groep.name ? ' ("' + groep.name + '")' : '') +
+      ', bijv. van een bestaande vestiging. Kies een ander adres, bijv. met de wijk erbij.';
+  } catch (e) {
+    console.error('Controle customer-facing adres ' + p.id + ': ' + (e && e.message));
+    return '';
+  }
 }
 
 function cfGroep_(adres) {
@@ -91,19 +114,26 @@ function cfGroep_(adres) {
   }
 }
 
-/** Lid toevoegen (of rol bijwerken). Al lid, ook via een alias (info@chickito.nl = hallo@): goed. */
+/**
+ * Lid toevoegen (of eigenaar maken). Leden via de lijst, niet via het adres in de aanroep: een "+" in het adres
+ * (hallo+…) gaat daar mis. Al lid, ook via een alias (info@chickito.nl = hallo@): goed.
+ */
 function cfLid_(adres, email, rol) {
-  var lid = null;
-  try { lid = AdminDirectory.Members.get(adres, email); } catch (e) {
-    if (!/not ?found|404/i.test(String(e && e.message))) throw e;
-  }
+  var leden = [];
+  var pagina;
+  do {
+    var r = AdminDirectory.Members.list(adres, { maxResults: 200, pageToken: pagina });
+    leden = leden.concat(r.members || []);
+    pagina = r.nextPageToken;
+  } while (pagina);
+  var lid = leden.filter(function (m) { return String(m.email || '').toLowerCase() === email; })[0];
   if (!lid) {
     try { AdminDirectory.Members.insert({ email: email, role: rol }, adres); } catch (e) {
       if (!/already exists|duplicate|409/i.test(String(e && e.message))) throw e;
     }
     return;
   }
-  if (rol === 'OWNER' && lid.role !== 'OWNER') AdminDirectory.Members.patch({ role: rol }, adres, email);
+  if (rol === 'OWNER' && lid.role !== 'OWNER') AdminDirectory.Members.patch({ role: rol }, adres, lid.id);
 }
 
 function cfHerhaal_(fn) {

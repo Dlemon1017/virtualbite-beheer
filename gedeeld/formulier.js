@@ -157,7 +157,8 @@
       if (d.soort === 'postcoderegels') return postcodeRegelsHtml(w, uit);
       var type = d.soort === 'email' ? ' type="email" inputmode="email" autocapitalize="off"' :
         d.soort === 'telefoon' ? ' type="tel" inputmode="tel"' :
-        ['kvk', 'cijfers', 'huisnummer'].indexOf(d.soort) !== -1 ? ' inputmode="numeric"' : '';
+        ['kvk', 'cijfers', 'huisnummer'].indexOf(d.soort) !== -1 ? ' inputmode="numeric"' :
+        d.soort === 'naam' ? ' autocapitalize="words"' : d.soort === 'btw' ? ' autocapitalize="characters"' : '';
       return '<input id="' + id + '" data-veld="' + esc(d.veld) + '" value="' + esc(w) + '"' + type + vb + ' autocomplete="off"' + dis + '>';
     }
 
@@ -653,7 +654,8 @@
       zetStatus(veld, melding || r.info || 'Opgeslagen', melding ? (nietBlokkerend && !r.fout_extern ? 'let' : 'fout') : 'ok');
       if (veld === 'bsn') toonBsnOpgeslagen(r.waarde);
       if (veld === 'btw_id') { f.huidig.btw_vies = ''; if (r.waarde) controleerBtw(); }
-      if (veld === 'customer_facing_email' || veld === 'email_doorsturen') {
+      // Opgeschoonde namen ("Jan Jansen") en btw-nummer direct tonen, zodra het veld niet meer actief is.
+      if (veld === 'customer_facing_email' || veld === 'email_doorsturen' || (d && (d.soort === 'naam' || d.soort === 'btw'))) {
         var el = q('[data-veld="' + veld + '"]');
         if (el && document.activeElement !== el) el.value = r.waarde;
       }

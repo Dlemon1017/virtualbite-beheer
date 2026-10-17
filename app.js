@@ -923,6 +923,7 @@
       var herstelT = bezig(knop, actie === 'contract-opnieuw' ? 'Bezig…' : 'Versturen…');
       roep(actie === 'contract-opnieuw' ? 'contractOpnieuw' : 'tekenHerinneringNu', [huidig.id]).then(function (r) {
         herstelT(); toon(actie === 'contract-opnieuw' ? 'De stukken worden opnieuw gemaakt.' : 'Herinnering verstuurd.'); toonDetail(r);
+        if (actie === 'contract-opnieuw') stukkenNu(r.id);
       }).catch(function (err) { herstelT(); toon(err.message, true); });
       return;
     }
@@ -993,8 +994,8 @@
     }
     if (actie === 'ingevuld') return statusActie(knop, 'ingevuld', 'Controleren…');
     if (actie === 'akkoord') {
-      bevestig('Akkoord geven?', 'Daarna kunnen de gegevens niet meer worden gewijzigd. Het versturen van de overeenkomst ' +
-        'volgt in fase 4.', 'Akkoord').then(function (ja) {
+      bevestig('Akkoord geven?', 'Daarna kunnen de gegevens niet meer worden gewijzigd. De overeenkomst wordt gemaakt en ' +
+        'de tekenlink gaat naar de partner.', 'Akkoord').then(function (ja) {
         if (ja) statusActie(knop, 'akkoord', 'Bezig…', 'Akkoord gegeven. Status: Te tekenen.');
       });
       return;
@@ -1043,9 +1044,10 @@
     var herstel = bezig(knop, bezigTekst);
     var id = huidig.id;
     var route = huidig.route;
-    f.slaWachtendOp().then(function () { return roep(fn, [id]); }).then(function (r) {
+    return f.slaWachtendOp().then(function () { return roep(fn, [id]); }).then(function (r) {
       herstel();
       if (r.fouten) return toonFouten(id, fn, r.fouten, r.detail);
+      if (fn === 'akkoord') stukkenNu(id);
       zetHuidig(r);
       if (fn === 'ingevuld' && route === 'samen') { toonAfronden(); return; }
       toon(klaarTekst || 'Ingevuld. Status: Wacht op controle.');
@@ -1053,6 +1055,16 @@
       toonDetail(r);
       $('detail').scrollTop = 0;
     }).catch(function (err) { herstel(); toon(err.message, true); });
+  }
+
+  /**
+   * Na Akkoord of "Opnieuw maken": de stukken meteen laten maken (±30 s) in plaats van op de trigger te wachten (1–3 min).
+   * Op de achtergrond; de kaart "Overeenkomst" ververst zichzelf al. Lukt het niet, dan doet de trigger het alsnog.
+   */
+  function stukkenNu(id) {
+    roep('contractNu', [id]).then(function (r) {
+      if (huidig && huidig.id === id) { var top = $('detail').scrollTop; zetHuidig(r); toonDetail(r); $('detail').scrollTop = top; }
+    }).catch(function () { /* vangnet: de wachtrij-trigger */ });
   }
 
   /** Met het detail uit hetzelfde antwoord (sinds de snelheidsronde); anders nog apart ophalen. */
