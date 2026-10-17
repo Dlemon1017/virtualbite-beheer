@@ -767,6 +767,9 @@
       // Leeg: tekstveld met "Kies een datum" (een leeg datumveld toont in Safari de datum van vandaag in grijs).
       veld('startdatum', 'Startdatum', '<input id="v-startdatum" data-veld="startdatum" data-datum type="' +
         (p.startdatum ? 'date' : 'text') + '" placeholder="Kies een datum" value="' + esc(p.startdatum) + '"' + dis + '>') +
+      veld('vestigingsnaam', 'Vestigingsnaam', '<input id="v-vestigingsnaam" data-veld="vestigingsnaam" autocomplete="off" value="' +
+        esc(p.vestigingsnaam || p.stad || '') + '" placeholder="Bijv. Amsterdam Oost"' + dis + '>',
+        '<div class="klein">Voor het TB-formulier ("Chickito Chicken - …"). Standaard de stad.</div>') +
       veld('customer_facing_email', 'Customer-facing e-mailadres', '<input id="v-customer_facing_email" data-veld="customer_facing_email" ' +
         'type="email" inputmode="email" autocapitalize="off" value="' + esc(p.customer_facing_email) + '"' + dis + '>',
         '<div class="klein">Moet uniek zijn over alle partners.</div>') +
@@ -829,7 +832,7 @@
   }
 
   var EXTRA_LABELS = { externe_merken: 'Welke merken', externe_merken_ja: 'Andere virtuele merken', fee_percentage: 'Fee-percentage', startdatum: 'Startdatum', bezorggebied: 'Bezorggebied',
-    customer_facing_email: 'Customer-facing e-mailadres', openingstijden_minimum: 'Afwijkende minimale tijd' };
+    customer_facing_email: 'Customer-facing e-mailadres', vestigingsnaam: 'Vestigingsnaam', openingstijden_minimum: 'Afwijkende minimale tijd' };
 
   function toonControleFouten(fouten, waarschuwingen) {
     var el = $('controleFouten');
