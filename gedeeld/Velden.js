@@ -78,7 +78,6 @@ var KEUZES = {
   koppeling: [['tconnect', 'T-Connect'], ['terminal', 'Terminal'], ['pos_api', 'POS-API'], ['other', 'Other']]
 };
 
-function locatieAnders_(g) { return g.locatie_zelfde !== 'ja'; }
 
 /**
  * Formuliervelden per stap, in de volgorde van het TB-formulier.
@@ -93,15 +92,9 @@ var FORMULIER_STAPPEN = [
     { veld: 'rechtsvorm', label: 'Rechtsvorm', soort: 'keuze', keuzes: 'rechtsvorm', verplicht: true },
     { veld: 'bedrijfsnaam', label: 'Officiële bedrijfsnaam', soort: 'tekst', verplicht: true, voorbeeld: 'Bijv. Pizzeria Roma B.V.' },
     { veld: 'eigenaar_naam', label: 'Eigenaar / bestuurder', soort: 'tekst', verplicht: true, voorbeeld: 'Bijv. Jan Jansen' },
-    { veld: 'telefoon_zaak', label: 'Telefoonnummer zaak', soort: 'telefoon', verplicht: true, voorbeeld: 'Bijv. 0201234567' },
-    { veld: 'contactpersoon', label: 'Contactpersoon', soort: 'tekst', verplicht: true, voorbeeld: 'Bijv. Jan Jansen' },
-    { veld: 'contactpersoon_mobiel', label: 'Mobiel contactpersoon', soort: 'telefoon', verplicht: true, voorbeeld: 'Bijv. 0612345678' },
-    { veld: 'vestiging_postcode', label: 'Postcode', soort: 'postcode', verplicht: true, voorbeeld: 'Bijv. 1234 AB',
-      kop: 'Vestigingsadres (zoals bij de KvK)', rij: 'vestiging-nr' },
-    { veld: 'vestiging_huisnummer', label: 'Huisnummer', soort: 'huisnummer', verplicht: true, voorbeeld: 'Bijv. 12', rij: 'vestiging-nr' },
-    { veld: 'vestiging_toevoeging', label: 'Toevoeging', soort: 'tekst', verplicht: false, voorbeeld: 'Bijv. a', rij: 'vestiging-nr' },
-    { veld: 'vestiging_straat', label: 'Straat', soort: 'tekst', verplicht: true, voorbeeld: 'Wordt automatisch ingevuld' },
-    { veld: 'vestiging_plaats', label: 'Plaats', soort: 'tekst', verplicht: true, voorbeeld: 'Wordt automatisch ingevuld' },
+    // Telefoon zaak, contactpersoon (+ mobiel) en het volledige vestigingsadres niet meer gevraagd (17-10-2026): ze stonden
+    // alleen op blad 1 van het TB-formulier. De overeenkomst noemt alleen de vestigingsplaats.
+    { veld: 'vestiging_plaats', label: 'Vestigingsplaats (zoals bij de KvK)', soort: 'tekst', verplicht: true, voorbeeld: 'Bijv. Lelystad' },
     { veld: 'email_facturen', label: 'E-mail voor facturen', soort: 'email', verplicht: true, voorbeeld: 'Bijv. administratie@pizzeriaroma.nl' },
     { veld: 'email_communicatie', label: 'E-mail voor communicatie', soort: 'email', verplicht: true, voorbeeld: 'Bijv. info@pizzeriaroma.nl' },
     { veld: 'kvk', label: 'KvK-nummer', soort: 'kvk', verplicht: true, voorbeeld: 'Bijv. 12345678' },
@@ -110,17 +103,12 @@ var FORMULIER_STAPPEN = [
   ] },
   { titel: 'Locatie', velden: [
     { veld: 'zaak_naam', label: 'Naam van de zaak', soort: 'tekst', verplicht: true, voorbeeld: 'Bijv. Pizzeria Roma' },
-    { veld: 'locatie_zelfde', label: 'Locatieadres is hetzelfde als vestigingsadres', soort: 'vinkje', verplicht: false },
     { veld: 'locatie_postcode', label: 'Postcode', soort: 'postcode', voorbeeld: 'Bijv. 1234 AB', kop: 'Locatieadres (waar de keuken is)',
-      rij: 'locatie-nr', verplicht: locatieAnders_, toon: locatieAnders_ },
-    { veld: 'locatie_huisnummer', label: 'Huisnummer', soort: 'huisnummer', voorbeeld: 'Bijv. 12', rij: 'locatie-nr',
-      verplicht: locatieAnders_, toon: locatieAnders_ },
-    { veld: 'locatie_toevoeging', label: 'Toevoeging', soort: 'tekst', voorbeeld: 'Bijv. a', rij: 'locatie-nr', verplicht: false,
-      toon: locatieAnders_ },
-    { veld: 'locatie_straat', label: 'Straat', soort: 'tekst', voorbeeld: 'Wordt automatisch ingevuld',
-      verplicht: locatieAnders_, toon: locatieAnders_ },
-    { veld: 'locatie_plaats', label: 'Plaats', soort: 'tekst', voorbeeld: 'Wordt automatisch ingevuld',
-      verplicht: locatieAnders_, toon: locatieAnders_ },
+      rij: 'locatie-nr', verplicht: true },
+    { veld: 'locatie_huisnummer', label: 'Huisnummer', soort: 'huisnummer', voorbeeld: 'Bijv. 12', rij: 'locatie-nr', verplicht: true },
+    { veld: 'locatie_toevoeging', label: 'Toevoeging', soort: 'tekst', voorbeeld: 'Bijv. a', rij: 'locatie-nr', verplicht: false },
+    { veld: 'locatie_straat', label: 'Straat', soort: 'tekst', voorbeeld: 'Wordt automatisch ingevuld', verplicht: true },
+    { veld: 'locatie_plaats', label: 'Plaats', soort: 'tekst', voorbeeld: 'Wordt automatisch ingevuld', verplicht: true },
     { veld: 'locatie_telefoon', label: 'Telefoonnummer locatie', soort: 'telefoon', verplicht: true, voorbeeld: 'Bijv. 0201234567' },
     { veld: 'locatie_contactpersoon', label: 'Contactpersoon locatie', soort: 'tekst', verplicht: true, voorbeeld: 'Bijv. Jan Jansen' },
     { veld: 'locatie_mobiel', label: 'Mobiel contactpersoon locatie', soort: 'telefoon', verplicht: true, voorbeeld: 'Bijv. 0612345678' }
@@ -158,6 +146,7 @@ function veldZichtbaar(d, g) {
 }
 
 /** Locatieadres zoals het geldt: alleen met het vinkje "hetzelfde" aan het vestigingsadres. */
+/** Locatieadres. locatie_zelfde = 'ja' alleen nog bij oudere partners (toen kon "hetzelfde als vestigingsadres"). */
 function locatieAdres(p) {
   var pre = p.locatie_zelfde === 'ja' ? 'vestiging_' : 'locatie_';
   return {
@@ -310,11 +299,7 @@ function valideerPartnerFormulier(g) {
     if (fout) fouten[d.veld] = fout;
     w[d.veld] = waarde == null ? '' : waarde;
   });
-  // Locatieadres hetzelfde als vestigingsadres: kopie bewaren (voor het TB-formulier en de afstanden).
-  w.locatie_zelfde = g.locatie_zelfde === 'ja' ? 'ja' : 'nee';
-  if (w.locatie_zelfde === 'ja') {
-    ['postcode', 'huisnummer', 'toevoeging', 'straat', 'plaats'].forEach(function (k) { w['locatie_' + k] = w['vestiging_' + k]; });
-  }
+  w.locatie_zelfde = 'nee'; // het locatieadres wordt altijd zelf ingevuld (sinds 17-10-2026)
   return { ok: !Object.keys(fouten).length, waarde: w, fouten: fouten, waarschuwingen: waarschuwingen };
 }
 
