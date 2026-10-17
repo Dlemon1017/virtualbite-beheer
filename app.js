@@ -594,7 +594,7 @@
       (zonderCf ? '' : veld('customer_facing_email', 'Customer-facing e-mailadres', mail,
         '<div class="klein">Moet uniek zijn over alle partners.</div>')) +
       veld('email_doorsturen', 'Eigen mailadres voor doorsturen', mail, '<div class="klein">Hierheen wordt ' +
-        esc(p.customer_facing_email) + ' later doorgestuurd (nog niet gekoppeld).</div>') +
+        esc(p.customer_facing_email) + ' na tekenen doorgestuurd.</div>') +
       (['Getekend', 'Geannuleerd'].indexOf(p.status) === -1 ?
         '<button class="knop gevaar mt" data-actie="annuleren">Partner annuleren</button>' : '');
   }
@@ -779,7 +779,8 @@
         '<div class="klein" id="vestigingVoorbeeld">' + esc(vestigingVoorbeeld(p, p.vestigingsnaam || p.stad || '')) + '</div>') +
       veld('customer_facing_email', 'Customer-facing e-mailadres', '<input id="v-customer_facing_email" data-veld="customer_facing_email" ' +
         'type="email" inputmode="email" autocapitalize="off" value="' + esc(p.customer_facing_email) + '"' + dis + '>',
-        '<div class="klein">Moet uniek zijn over alle partners.</div>') +
+        '<div class="klein">Afgeleid van de vestigingsnaam (bijv. amsterdamoost@chickito.nl); aanpasbaar. Moet uniek zijn. ' +
+        'Na tekenen stuurt dit adres door naar het eigen adres van de partner.</div>') +
       merkenVelden(p, uit) + tbAanmeldenVeld(p, uit) +
       '<div class="veld"><div class="label">Openingstijden</div><div class="klein">Minimaal ' + esc(openingsMinimum()) +
         ' op vrijdag, zaterdag, zondag en minimaal 2 andere dagen.</div>' +
@@ -882,6 +883,17 @@
   $('detailInhoud').addEventListener('input', function (e) {
     if (e.target.id === 'v-vestigingsnaam' && $('vestigingVoorbeeld') && huidig) {
       $('vestigingVoorbeeld').textContent = vestigingVoorbeeld(huidig, e.target.value);
+      // Customer-facing adres volgt de vestigingsnaam, zolang Dimitri het niet zelf heeft aangepast.
+      var cfEl = $('v-customer_facing_email');
+      if (cfEl && !cfEl.disabled) {
+        var afgeleid = cfEl.getAttribute('data-afgeleid') || cfVoorstel(huidig.vestigingsnaam || huidig.stad, inst.cf_domein);
+        var nieuw = cfVoorstel(e.target.value, inst.cf_domein);
+        if (nieuw && cfEl.value.trim().toLowerCase() === afgeleid) {
+          cfEl.value = nieuw;
+          cfEl.setAttribute('data-afgeleid', nieuw);
+          cfEl.dispatchEvent(new Event('input', { bubbles: true })); // opslaan + uniekcontrole zoals bij typen
+        }
+      }
     }
   });
 
