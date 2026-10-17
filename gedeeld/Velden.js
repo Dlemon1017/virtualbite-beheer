@@ -9,8 +9,6 @@
  */
 
 var UITLEG = {
-  tb_restaurant_id: 'Heb je al een restaurant op Thuisbezorgd? Klik in Partner Hub op je restaurantnaam; daar staat je ' +
-    'ID (bijv. 1543994).',
   bedrijfsnaam: 'De naam zoals die bij de KvK staat ingeschreven, inclusief de rechtsvorm. Bijvoorbeeld ' +
     '"Pizzeria Roma Lelystad B.V." of "J. Jansen h.o.d.n. Snackbar De Hoek".',
   zaak_naam: 'De naam die je klanten kennen en die op de gevel staat, bijvoorbeeld "Snackbar De Hoek". Die kan ' +
@@ -26,13 +24,6 @@ var UITLEG = {
   btw_id: 'Je btw-identificatienummer, in de vorm NL123456789B01. Het staat op je facturen en in brieven van de ' +
     'Belastingdienst (of in Mijn Belastingdienst Zakelijk). Heb je een eenmanszaak, gebruik dan het btw-id en niet ' +
     'het omzetbelastingnummer.',
-  bsn: 'Alleen nodig bij een eenmanszaak: daar is je BSN je fiscale nummer en Thuisbezorgd vraagt het op hun ' +
-    'registratieformulier. We bewaren het afgeschermd en gebruiken het alleen voor dat formulier.',
-  eu_vestiging: 'Heeft je bedrijf ook een vestiging of belastingplicht in een ander EU-land, bijvoorbeeld een filiaal ' +
-    'in België? Kies dan "Ja" en vul het land in. Voor de meeste zaken is het antwoord "Nee".',
-  pep: 'Kies "Ja" als jij een hoge politieke of publieke functie hebt (bijvoorbeeld Kamerlid, minister of rechter bij ' +
-    'de Hoge Raad), of als een familielid of naaste zakenpartner van je zo\'n functie heeft. Thuisbezorgd moet dit ' +
-    'wettelijk vragen. Voor bijna iedereen is het antwoord "Nee".',
   koppeling: 'Hoe de bestellingen van Thuisbezorgd bij jou binnenkomen. Terminal: een apparaat van Thuisbezorgd ' +
     '(€ 250 eenmalig en € 2,50 per week). POS-API: de bestellingen komen rechtstreeks in je kassasysteem. Twijfel je? ' +
     'Kies \'Other\', dan zoeken we het samen uit.',
@@ -99,7 +90,6 @@ function locatieAnders_(g) { return g.locatie_zelfde !== 'ja'; }
  */
 var FORMULIER_STAPPEN = [
   { titel: 'Bedrijfsgegevens', velden: [
-    { veld: 'tb_restaurant_id', label: 'Thuisbezorgd restaurant-ID (als je dat al hebt)', soort: 'cijfers', verplicht: false, voorbeeld: 'Bijv. 1543994' },
     { veld: 'rechtsvorm', label: 'Rechtsvorm', soort: 'keuze', keuzes: 'rechtsvorm', verplicht: true },
     { veld: 'bedrijfsnaam', label: 'Officiële bedrijfsnaam', soort: 'tekst', verplicht: true, voorbeeld: 'Bijv. Pizzeria Roma B.V.' },
     { veld: 'eigenaar_naam', label: 'Eigenaar / bestuurder', soort: 'tekst', verplicht: true, voorbeeld: 'Bijv. Jan Jansen' },
@@ -115,14 +105,8 @@ var FORMULIER_STAPPEN = [
     { veld: 'email_facturen', label: 'E-mail voor facturen', soort: 'email', verplicht: true, voorbeeld: 'Bijv. administratie@pizzeriaroma.nl' },
     { veld: 'email_communicatie', label: 'E-mail voor communicatie', soort: 'email', verplicht: true, voorbeeld: 'Bijv. info@pizzeriaroma.nl' },
     { veld: 'kvk', label: 'KvK-nummer', soort: 'kvk', verplicht: true, voorbeeld: 'Bijv. 12345678' },
-    { veld: 'btw_id', label: 'BTW-nummer', soort: 'btw', verplicht: true, voorbeeld: 'Bijv. NL123456789B01' },
-    { veld: 'bsn', label: 'BSN', soort: 'bsn', voorbeeld: 'Bijv. 123456789',
-      verplicht: function (g) { return g.rechtsvorm === 'eenmanszaak'; },
-      toon: function (g) { return g.rechtsvorm === 'eenmanszaak'; } },
-    { veld: 'eu_vestiging', label: 'Vestiging in een ander EU-land?', soort: 'keuze', keuzes: 'ja_nee', verplicht: true },
-    { veld: 'eu_land', label: 'Welk EU-land?', soort: 'tekst', voorbeeld: 'Bijv. België',
-      verplicht: function (g) { return g.eu_vestiging === 'ja'; }, toon: function (g) { return g.eu_vestiging === 'ja'; } },
-    { veld: 'pep', label: 'Ben je een politiek prominent persoon (PEP)?', soort: 'keuze', keuzes: 'ja_nee', verplicht: true }
+    { veld: 'btw_id', label: 'BTW-nummer', soort: 'btw', verplicht: true, voorbeeld: 'Bijv. NL123456789B01' }
+    // Restaurant-ID, BSN, EU-vestiging en PEP niet meer gevraagd (17-10-2026): blad 1 van het TB-formulier is Virtualbite.
   ] },
   { titel: 'Locatie', velden: [
     { veld: 'zaak_naam', label: 'Naam van de zaak', soort: 'tekst', verplicht: true, voorbeeld: 'Bijv. Pizzeria Roma' },

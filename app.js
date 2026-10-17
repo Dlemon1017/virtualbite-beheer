@@ -754,6 +754,13 @@
     toonControleFouten(p.controle_fouten, p.waarschuwingen_formulier);
   }
 
+  /** "Op Thuisbezorgd: Chickito Chicken - Amsterdam Oost": exact de naam van de vestiging op Thuisbezorgd. */
+  function vestigingVoorbeeld(p, naam) {
+    var n = String(naam || '').replace(/\s+/g, ' ').trim();
+    return 'Op Thuisbezorgd: ' + (p.merk || 'Chickito Chicken') + ' - ' + (n || 'Amsterdam Oost') + (n ? '' : ' (voorbeeld)') +
+      '. Ook in het TB-formulier en de aanmeldmail.';
+  }
+
   function controleVelden(p, uit) {
     var dis = uit ? ' disabled' : '';
     var heeftUitzondering = !!String(p.openingstijden_uitzondering || '').trim();
@@ -769,7 +776,7 @@
         (p.startdatum ? 'date' : 'text') + '" placeholder="Kies een datum" value="' + esc(p.startdatum) + '"' + dis + '>') +
       veld('vestigingsnaam', 'Vestigingsnaam', '<input id="v-vestigingsnaam" data-veld="vestigingsnaam" autocomplete="off" value="' +
         esc(p.vestigingsnaam || p.stad || '') + '" placeholder="Bijv. Amsterdam Oost"' + dis + '>',
-        '<div class="klein">Voor het TB-formulier ("Chickito Chicken - …"). Standaard de stad.</div>') +
+        '<div class="klein" id="vestigingVoorbeeld">' + esc(vestigingVoorbeeld(p, p.vestigingsnaam || p.stad || '')) + '</div>') +
       veld('customer_facing_email', 'Customer-facing e-mailadres', '<input id="v-customer_facing_email" data-veld="customer_facing_email" ' +
         'type="email" inputmode="email" autocapitalize="off" value="' + esc(p.customer_facing_email) + '"' + dis + '>',
         '<div class="klein">Moet uniek zijn over alle partners.</div>') +
@@ -872,6 +879,12 @@
   }
 
   // ---------- Acties van de beheerpagina (velden zelf: gedeeld/formulier.js) ----------
+  $('detailInhoud').addEventListener('input', function (e) {
+    if (e.target.id === 'v-vestigingsnaam' && $('vestigingVoorbeeld') && huidig) {
+      $('vestigingVoorbeeld').textContent = vestigingVoorbeeld(huidig, e.target.value);
+    }
+  });
+
   $('detailInhoud').addEventListener('click', function (e) {
     var merk = e.target.closest('[data-keuze="externe_merken_ja"] button');
     if (merk && !merk.disabled && $('merkenWelke')) { // opslaan doet gedeeld/formulier.js
