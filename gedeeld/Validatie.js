@@ -57,10 +57,11 @@ function normaliseerKvk(kvk) {
  */
 var KLEINE_WOORDEN = ['van', 'de', 'der', 'den', 'ten', 'ter', 'het', "'t", 'h.o.d.n.'];
 
-function hoofdletters(tekst, persoon) {
+function hoofdletters(tekst, persoon, achternaam) {
   return String(tekst == null ? '' : tekst).replace(/\s+/g, ' ').trim().split(' ').map(function (w, i) {
     if (w.toLowerCase() === 'h.o.d.n.') return 'h.o.d.n.';
-    if (persoon && i > 0 && KLEINE_WOORDEN.indexOf(w.toLowerCase()) !== -1) return w.toLowerCase();
+    // Losse achternaam ("van der Berg"): tussenvoegsels ook vooraan klein.
+    if (persoon && (i > 0 || achternaam) && KLEINE_WOORDEN.indexOf(w.toLowerCase()) !== -1) return w.toLowerCase();
     return w.replace(/(^|-)([a-zà-ÿ])/g, function (m, a, b) { return a + b.toUpperCase(); });
   }).join(' ');
 }

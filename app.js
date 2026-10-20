@@ -717,10 +717,13 @@
   /** Kaart "Getekend": wat er na tekenen automatisch is gedaan, met links naar de stukken. */
   function getekendKaartHtml(p) {
     var v = p.verwerkt || {};
-    var stappen = [['pdf', 'Getekende overeenkomst (PDF)'], ['tb', 'TB-formulier met handtekening'], ['mail', 'Mail aan partner (cc jou)'],
-      ['tbmail', 'Aanmelding Thuisbezorgd'], ['koppel', 'Customer-facing mail'], ['melding', 'Melding aan jou']];
+    var stappen = [['pdf', 'Getekende overeenkomst (PDF)'], ['koppel', 'Customer-facing mail'], ['tb', 'TB-formulier'],
+      ['mail', 'Mail aan partner (cc jou)'], ['tbmail', 'Aanmelding Thuisbezorgd'],
+      ['shopify', 'Bestelportaal (Shopify)' + (p.lm_klantnummer ? ' – klantnummer ' + p.lm_klantnummer : '')],
+      ['portaal', 'Uitnodiging bestelportaal'], ['lijst', 'Partnerlijst'], ['lm', 'Mail aan Leen Menken'], ['melding', 'Melding aan jou']];
     var stand = function (x) {
-      return x === 'ok' ? '✓' : x === 'nvt' ? 'n.v.t.' : x === 'uit' ? 'niet verstuurd (uitgezet)' : x === 'fout' ? 'mislukt (wordt dagelijks opnieuw geprobeerd)' : 'bezig…';
+      return x === 'ok' ? '✓' : x === 'nvt' ? 'n.v.t.' : x === 'uit' ? 'uitgezet' : x === 'droog' ? 'droogloop (niets gedaan)' :
+        x === 'concept' ? 'klaar als concept' : x === 'fout' ? 'mislukt (wordt dagelijks opnieuw geprobeerd)' : 'bezig…';
     };
     var link = function (url, tekst) { return url ? '<a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(tekst) + '</a>' : ''; };
     var s = p.stukken || {};
@@ -728,7 +731,11 @@
       stappen.map(function (x) { return '<div><dt>' + esc(x[1]) + '</dt><dd>' + esc(stand(v[x[0]])) + '</dd></div>'; }).join('') +
       '<div><dt>Stukken</dt><dd>' + [link(s.overeenkomst, 'Overeenkomst (getekend)'), link(s.tb, 'TB-formulier (getekend)'),
         link(s.zwh, 'Zo werkt het'), link(s.av, 'Algemene Partnervoorwaarden'), link(s.map, 'Map in Drive')].filter(Boolean).join('<br>') +
-      '</dd></div></dl></section>' + planningKaartHtml(p.planning);
+      '</dd></div></dl>' + (v.lm === 'concept' || stappen.some(function (x) { return v[x[0]] === 'fout'; }) ?
+        '<div class="knoppen-rij">' + (v.lm === 'concept' ? '<button type="button" class="klein-knop" data-actie="lm-versturen">' +
+          'Mail aan Leen Menken versturen</button>' : '') + (stappen.some(function (x) { return v[x[0]] === 'fout'; }) ?
+          '<button type="button" class="klein-knop" data-actie="verwerk-opnieuw">Opnieuw proberen</button>' : '') + '</div>' : '') +
+      '</section>' + planningKaartHtml(p.planning);
   }
 
   /** Kaart "Onboarding en training": wat de partner heeft gekozen (agendawijzigingen van jou worden overgenomen). */
@@ -798,7 +805,8 @@
     clearTimeout(verversTimer);
     if (verversId !== p.id) { verversId = p.id; verversRondes = 0; }
     var v = p.verwerkt || {};
-    var bezig = p.status === 'Getekend' && ['pdf', 'tb', 'mail', 'tbmail', 'koppel', 'melding'].some(function (s) { return !v[s]; });
+    var bezig = p.status === 'Getekend' && (['pdf', 'tb', 'mail', 'tbmail', 'koppel', 'melding'].some(function (s) { return !v[s]; }) ||
+      (!!v.shopify && ['portaal', 'lijst', 'lm'].some(function (s) { return !v[s]; }))); // inrichten (alleen als het al loopt)
     var wacht = bezig || (p.status === 'Te tekenen' && !p.getekend_op &&
       (p.contract_status === 'maken' || (p.contract_status === 'klaar' && !p.teken_verstuurd_op)));
     if (!wacht) { verversRondes = 0; return; }
@@ -1025,6 +1033,14 @@
       return;
     }
     if (actie === 'aanpassing-vragen') return aanpassingVragen(knop);
+    if (actie === 'lm-versturen') {
+      bevestig('Mail aan Leen Menken versturen?', 'Het concept met de nieuwe leverlocatie en de partnerlijst gaat naar Leen Menken ' +
+        '(m.verdouw@leenmenken.nl, cc customeronboarding@). Je kunt het concept eerst in Gmail bekijken.', 'Versturen').then(function (ja) {
+        if (ja) statusActie(knop, 'lmVersturen', 'Versturen…', 'Mail aan Leen Menken verstuurd.');
+      });
+      return;
+    }
+    if (actie === 'verwerk-opnieuw') return statusActie(knop, 'verwerkOpnieuw', 'Bezig…', 'De mislukte stappen worden opnieuw geprobeerd (± 1–3 min).');
     if (actie === 'aanpassing-mail' || actie === 'aanpassing-whatsapp') {
       var wa = actie === 'aanpassing-whatsapp';
       var vensterA = wa ? window.open('', '_blank') : null;

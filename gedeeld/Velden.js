@@ -13,7 +13,7 @@ var UITLEG = {
     '"Pizzeria Roma Lelystad B.V." of "J. Jansen h.o.d.n. Snackbar De Hoek".',
   zaak_naam: 'De naam die je klanten kennen en die op de gevel staat, bijvoorbeeld "Snackbar De Hoek". Die kan ' +
     'anders zijn dan de officiële bedrijfsnaam.',
-  eigenaar_naam: 'Bij een B.V.: de bestuurder zoals die bij de KvK staat. Bij een eenmanszaak of vof: de eigenaar of ' +
+  eigenaar_voornaam: 'Bij een B.V.: de bestuurder zoals die bij de KvK staat. Bij een eenmanszaak of vof: de eigenaar of ' +
     'een van de vennoten. Vul voor- en achternaam in.',
   email_facturen: 'Hier sturen Thuisbezorgd en wij facturen en afrekeningen naartoe, bijvoorbeeld het adres van je ' +
     'boekhouder of administratie.',
@@ -91,7 +91,11 @@ var FORMULIER_STAPPEN = [
   { titel: 'Bedrijfsgegevens', velden: [
     { veld: 'rechtsvorm', label: 'Rechtsvorm', soort: 'keuze', keuzes: 'rechtsvorm', verplicht: true },
     { veld: 'bedrijfsnaam', label: 'Officiële bedrijfsnaam', soort: 'naam', verplicht: true, voorbeeld: 'Bijv. Pizzeria Roma B.V.' },
-    { veld: 'eigenaar_naam', label: 'Eigenaar / bestuurder', soort: 'naam', persoon: true, verplicht: true, voorbeeld: 'Bijv. Jan Jansen' },
+    // Eigenaar / bestuurder in twee velden (21-10-2026); eigenaar_naam (overeenkomst, tekenpagina) = voornaam + achternaam.
+    { veld: 'eigenaar_voornaam', label: 'Voornaam eigenaar / bestuurder', soort: 'naam', persoon: true, verplicht: true,
+      voorbeeld: 'Bijv. Jan' },
+    { veld: 'eigenaar_achternaam', label: 'Achternaam eigenaar / bestuurder', soort: 'naam', persoon: true, achternaam: true,
+      verplicht: true, voorbeeld: 'Bijv. Jansen' },
     // Telefoon zaak, contactpersoon (+ mobiel) en het volledige vestigingsadres niet meer gevraagd (17-10-2026): ze stonden
     // alleen op blad 1 van het TB-formulier. De overeenkomst noemt alleen de vestigingsplaats.
     { veld: 'vestiging_plaats', label: 'Vestigingsplaats (zoals bij de KvK)', soort: 'tekst', verplicht: true, voorbeeld: 'Bijv. Lelystad' },
@@ -248,7 +252,7 @@ function controleerVeld(d, tekst) {
   if (d.soort === 'cijfers') fout = n(normaliseerCijfers, 'Alleen cijfers.');
   if (d.soort === 'kvk') fout = n(normaliseerKvk, 'Een KvK-nummer heeft 8 cijfers.');
   if (d.soort === 'btw') { fout = normaliseerBtwId(tekst) ? '' : 'Vul het btw-id in als NL123456789B01.'; w = schoonBtwId(tekst); }
-  if (d.soort === 'naam') w = hoofdletters(tekst, d.persoon);
+  if (d.soort === 'naam') w = hoofdletters(tekst, d.persoon, d.achternaam);
   if (d.soort === 'bsn') fout = n(normaliseerBsn, 'Dit BSN klopt niet. Controleer de 9 cijfers.');
   if (d.soort === 'keuze' && !KEUZES[d.keuzes].some(function (k) { return k[0] === tekst; })) fout = 'Maak een keuze.';
   if (d.soort === 'vinkje' && ['ja', 'nee'].indexOf(tekst) === -1) fout = 'Ongeldige keuze.';
@@ -301,12 +305,25 @@ function valideerPartnerFormulier(g) {
     w[d.veld] = waarde == null ? '' : waarde;
   });
   w.locatie_zelfde = 'nee'; // het locatieadres wordt altijd zelf ingevuld (sinds 17-10-2026)
-  // Naam van de ondertekenaar: waarschuwing (niet blokkerend) als het geen voor- én achternaam lijkt, bijv. "M.said".
-  if (!fouten.eigenaar_naam && w.eigenaar_naam && !lijktVolledigeNaam(w.eigenaar_naam)) {
-    waarschuwingen.eigenaar_naam = 'Dit lijkt geen voor- én achternaam. Deze naam komt in de overeenkomst en staat vooraf ' +
-      'ingevuld op de tekenpagina; vul bij voorkeur de volledige naam in, bijv. "Mohammed Said".';
+  w.eigenaar_naam = eigenaarNaam(w); // overeenkomst en tekenpagina
+  // Voornaam als voorletter ("M." of "M"): waarschuwing (niet blokkerend); de naam komt in de overeenkomst.
+  if (!fouten.eigenaar_voornaam && w.eigenaar_voornaam && !/^[^.]{2,}$/.test(String(w.eigenaar_voornaam).trim())) {
+    waarschuwingen.eigenaar_voornaam = 'Dit lijkt een voorletter. Vul bij voorkeur de volledige voornaam in, bijv. "Mohammed"; ' +
+      'de naam komt in de overeenkomst en staat vooraf ingevuld op de tekenpagina.';
   }
   return { ok: !Object.keys(fouten).length, waarde: w, fouten: fouten, waarschuwingen: waarschuwingen };
+}
+
+/** "Jan" + "van der Berg" → "Jan van der Berg" (overeenkomst, tekenpagina). Zonder losse velden: het oude veld. */
+function eigenaarNaam(p) {
+  var n = [p.eigenaar_voornaam, p.eigenaar_achternaam].map(function (x) { return String(x || '').trim(); }).filter(Boolean).join(' ');
+  return n || String(p.eigenaar_naam || '').trim();
+}
+
+/** Oude partners: "Mohammed Said" → voornaam "Mohammed", achternaam "Said" (eerste woord, rest). */
+function splitsNaam(naam) {
+  var w = String(naam || '').trim().split(/\s+/).filter(Boolean);
+  return { voornaam: w[0] || '', achternaam: w.slice(1).join(' ') };
 }
 
 /** Lijkt een naam op voor- én achternaam? "Mohammed Said" ja; "M.said", "M. Said" of alleen "Said" niet. */
