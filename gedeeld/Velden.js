@@ -301,7 +301,58 @@ function valideerPartnerFormulier(g) {
     w[d.veld] = waarde == null ? '' : waarde;
   });
   w.locatie_zelfde = 'nee'; // het locatieadres wordt altijd zelf ingevuld (sinds 17-10-2026)
+  // Naam van de ondertekenaar: waarschuwing (niet blokkerend) als het geen voor- én achternaam lijkt, bijv. "M.said".
+  if (!fouten.eigenaar_naam && w.eigenaar_naam && !lijktVolledigeNaam(w.eigenaar_naam)) {
+    waarschuwingen.eigenaar_naam = 'Dit lijkt geen voor- én achternaam. Deze naam komt in de overeenkomst en staat vooraf ' +
+      'ingevuld op de tekenpagina; vul bij voorkeur de volledige naam in, bijv. "Mohammed Said".';
+  }
   return { ok: !Object.keys(fouten).length, waarde: w, fouten: fouten, waarschuwingen: waarschuwingen };
+}
+
+/** Lijkt een naam op voor- én achternaam? "Mohammed Said" ja; "M.said", "M. Said" of alleen "Said" niet. */
+function lijktVolledigeNaam(naam) {
+  var w = String(naam || '').trim().split(/\s+/).filter(Boolean);
+  if (w.length < 2) return false;
+  return /^[^.]{2,}$/.test(w[0]) && w[w.length - 1].replace(/[^A-Za-zÀ-ÿ]/g, '').length >= 2;
+}
+
+// ---------- "Aanpassing vragen" (controlestap): welke velden de partner moet aanpassen ----------
+var LOCATIE_ADRES_DELEN = ['locatie_postcode', 'locatie_huisnummer', 'locatie_toevoeging', 'locatie_straat', 'locatie_plaats'];
+
+/** Wat Dimitri kan aanvinken, in de volgorde van het formulier: [{veld, label, stap}]. Het locatieadres als één keuze. */
+function aanpasbareVelden() {
+  var uit = [];
+  FORMULIER_STAPPEN.forEach(function (st) {
+    st.velden.forEach(function (d) {
+      if (LOCATIE_ADRES_DELEN.indexOf(d.veld) > 0) return;
+      uit.push({ veld: d.veld, label: d.veld === 'locatie_postcode' ? 'Locatieadres' : d.label, stap: st.titel });
+    });
+  });
+  return uit;
+}
+
+/** Labels van aangevinkte velden (onbekende vallen weg). */
+function aanpassingLabels(velden) {
+  var alle = aanpasbareVelden();
+  return (velden || []).map(function (v) {
+    var x = alle.filter(function (a) { return a.veld === v; })[0];
+    return x ? x.label : '';
+  }).filter(Boolean);
+}
+
+/** Aangevinkte velden plus de losse delen van het locatieadres (om ze op de partnerpagina te markeren). */
+function aanpassingVeldenUitgebreid(velden) {
+  var uit = [];
+  (velden || []).forEach(function (v) { (v === 'locatie_postcode' ? LOCATIE_ADRES_DELEN : [v]).forEach(function (x) { uit.push(x); }); });
+  return uit;
+}
+
+/** Welke (aanvinkbare) velden zijn veranderd t.o.v. de momentopname `voor`? Labels, in formuliervolgorde. */
+function gewijzigdeVelden(voor, na) {
+  var anders = function (v) { return String(voor[v] == null ? '' : voor[v]) !== String(na[v] == null ? '' : na[v]); };
+  return aanpasbareVelden().filter(function (a) {
+    return (a.veld === 'locatie_postcode' ? LOCATIE_ADRES_DELEN : [a.veld]).some(anders);
+  }).map(function (a) { return a.label; });
 }
 
 /** Andere virtuele merken voor de overeenkomst: de ingevulde merken, of "GEEN". */

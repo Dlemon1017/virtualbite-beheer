@@ -341,7 +341,7 @@
 
   function werkAanmakenBij() {
     var mobiel = $('n-mobiel').value.trim();
-    var klaar = !!$('n-voornaam').value.trim() && !!$('n-achternaam').value.trim() && !!normaliseerEmail($('n-email').value) &&
+    var klaar = !!$('n-voornaam').value.trim() && !!normaliseerEmail($('n-email').value) &&
       (!mobiel || !!whatsappNummer(mobiel)) && (nieuwKanaal !== 'whatsapp' || !!whatsappNummer(mobiel)) && !!$('n-merk').value &&
       $('n-stad').value.trim().length >= 2 && !!normaliseerCfAdres($('n-cf').value, inst.cf_domein) && !!nieuwRoute;
     $('n-maak').classList.toggle('klaar', klaar);
@@ -382,7 +382,7 @@
   // ---------- Detail: drie schermen ----------
   // Formulier (samen invullen), afronden (na "Ingevuld") en controle (Dimitri, vanaf "Wacht op controle").
   // Velden, opslaan, adres, postcodes, tijden en afstanden: gedeeld met de partnerpagina (gedeeld/formulier.js).
-  var FORMULIER_STATUSSEN = ['Samen invullen', 'Aangemaakt', 'Uitgenodigd', 'Deels ingevuld', 'Terug bij partner'];
+  var FORMULIER_STATUSSEN = ['Samen invullen', 'Aangemaakt', 'Uitgenodigd', 'Deels ingevuld'];
   var bewerkStap = null; // controlescherm: welk blok staat open voor wijzigen (index in FORMULIER_STAPPEN)
 
   var f = VBFormulier({
@@ -489,7 +489,7 @@
   }
 
   function uitnodigingHtml(p) {
-    var kan = ['Aangemaakt', 'Samen invullen', 'Uitgenodigd', 'Deels ingevuld', 'Terug bij partner'].indexOf(p.status) !== -1;
+    var kan = ['Aangemaakt', 'Samen invullen', 'Uitgenodigd', 'Deels ingevuld'].indexOf(p.status) !== -1;
     if (!kan) return '';
     return '<div class="uitnodigen"><div class="label">Partner zelf laten invullen</div><div class="klein">' +
       esc(uitnodigingInfo(p)) + '</div>' + uitnodigingKnoppen(p) + '</div>';
@@ -499,6 +499,7 @@
     zetHuidig(p);
     details[p.id] = p; // het geheugen volgt wat op het scherm staat
     if (toontStatuskaart(p)) toonStatuskaart(p);
+    else if (p.status === 'Aanpassing gevraagd') toonAanpassing(p);
     else if (FORMULIER_STATUSSEN.indexOf(p.status) !== -1) toonFormulier(p);
     else toonControle(p);
     if (p.markering && !p.markering.actueel && heeftPostcodes(p)) f.planAfstanden(true);
@@ -552,6 +553,90 @@
       FORMULIER_STAPPEN.map(function (st) { return '<h3 class="tussenkop">' + esc(st.titel) + '</h3>' + VBSamenvatting(st, p); }).join('') +
       '</details>';
     $('detailInhoud').innerHTML = h;
+  }
+
+  // ---------- "Aanpassing gevraagd": wat er gevraagd is, opnieuw sturen, WhatsApp, intrekken ----------
+  function toonAanpassing(p) {
+    var regel = function (label, waarde) { return '<div><dt>' + esc(label) + '</dt><dd>' + esc(waarde) + '</dd></div>'; };
+    var velden = [];
+    try { velden = JSON.parse(p.aanpassing_velden || '[]'); } catch (e) { velden = []; }
+    var wa = p.kanaal === 'whatsapp';
+    var h = kopHtml(p, true, true) +
+      '<section class="kaart" id="statusKaart"><h2>Aanpassing gevraagd</h2><dl>' +
+      regel('Gevraagd op', p.aanpassing_op || '') +
+      regel('Aanpassen', aanpassingLabels(velden).join(', ')) +
+      regel('Toelichting', p.aanpassing_toelichting || '') +
+      regel('Herinnering', p.aanpassing_herinnering_op ? 'Verstuurd ' + p.aanpassing_herinnering_op : 'Na 2 dagen, als er nog niets verstuurd is') +
+      '</dl><div class="klein">Verstuurt de partner opnieuw, dan gaat de status terug naar "Wacht op controle" en krijg je een ' +
+      'melding met de gewijzigde velden.</div><div class="knoppen-rij">' +
+      '<button type="button" class="klein-knop" data-actie="aanpassing-mail">Opnieuw versturen via mail</button>' +
+      (wa ? '<button type="button" class="klein-knop" data-actie="aanpassing-whatsapp">Via WhatsApp sturen</button>' : '') +
+      '<button type="button" class="klein-knop" data-actie="aanpassing-intrekken">Intrekken (zelf aanpassen)</button></div></section>' +
+      '<details class="kaart ingevuld"><summary>Bekijk ingevulde gegevens</summary>' +
+      FORMULIER_STAPPEN.map(function (st) { return '<h3 class="tussenkop">' + esc(st.titel) + '</h3>' + VBSamenvatting(st, p); }).join('') +
+      '</details>';
+    $('detailInhoud').innerHTML = h;
+  }
+
+  /**
+   * Venster "Aanpassing vragen": velden aanvinken (per stap, het locatieadres als één keuze) en een korte toelichting.
+   * Geeft {velden, toelichting, venster} of null. Bij kanaal WhatsApp opent het WhatsApp-venster al bij de klik
+   * (anders blokkeert de browser het), de link volgt na het antwoord van de server.
+   */
+  function aanpassingDialoog(p) {
+    return new Promise(function (klaar) {
+      var achter = document.createElement('div');
+      achter.className = 'dialoog-achter';
+      var stapNu = '';
+      var lijst = aanpasbareVelden().map(function (a) {
+        var kop = a.stap !== stapNu ? '<div class="aanpas-stap">' + esc(a.stap) + '</div>' : '';
+        stapNu = a.stap;
+        return kop + '<label class="vink-regel"><input type="checkbox" data-aanpas="' + esc(a.veld) + '"> ' + esc(a.label) + '</label>';
+      }).join('');
+      achter.innerHTML = '<div class="dialoog groot" role="dialog" aria-modal="true" aria-labelledby="d-titel">' +
+        '<h2 id="d-titel">Aanpassing vragen</h2><p>Vink aan wat ' + esc(naamVan(p) || 'de partner') + ' moet aanpassen of ' +
+        'aanvullen. De partner krijgt een mail' + (p.kanaal === 'whatsapp' ? ' en jij een WhatsApp-bericht om te sturen' : '') +
+        ' met een knop naar het eigen formulier; wat er al staat blijft staan.</p>' + lijst +
+        '<label for="d-toelichting" class="mt">Toelichting voor de partner</label>' +
+        '<textarea id="d-toelichting" placeholder="Bijv. Het KvK-nummer klopt niet; kun je het nakijken?"></textarea>' +
+        '<div class="fout" id="d-fout"></div><div class="dialoog-knoppen">' +
+        '<button class="knop licht" data-k="nee">Annuleer</button><button class="knop hoofd klaar" data-k="ja">Versturen</button></div></div>';
+      function sluit(uitkomst) { achter.remove(); document.removeEventListener('keydown', toets); klaar(uitkomst); }
+      function toets(e) { if (e.key === 'Escape') sluit(null); }
+      achter.addEventListener('click', function (e) {
+        if (e.target === achter) return sluit(null);
+        var k = e.target.getAttribute('data-k');
+        if (k === 'nee') return sluit(null);
+        if (k !== 'ja') return;
+        var velden = Array.prototype.filter.call(achter.querySelectorAll('[data-aanpas]'), function (x) { return x.checked; })
+          .map(function (x) { return x.getAttribute('data-aanpas'); });
+        var toelichting = achter.querySelector('#d-toelichting').value.trim();
+        var fout = !velden.length ? 'Vink minstens één veld aan.' : !toelichting ? 'Typ een korte toelichting.' : '';
+        if (fout) { achter.querySelector('#d-fout').textContent = fout; return; }
+        var venster = p.kanaal === 'whatsapp' ? window.open('', '_blank') : null;
+        sluit({ velden: velden, toelichting: toelichting, venster: venster });
+      });
+      document.addEventListener('keydown', toets);
+      document.body.appendChild(achter);
+      achter.querySelector('[data-aanpas]').focus();
+    });
+  }
+
+  function aanpassingVragen(knop) {
+    var id = huidig.id;
+    f.slaWachtendOp().then(function () { return aanpassingDialoog(huidig); }).then(function (k) {
+      if (!k) return;
+      var herstel = bezig(knop, 'Versturen…');
+      roep('aanpassingVragen', [id, k.velden, k.toelichting]).then(function (r) {
+        herstel();
+        if (k.venster && r.whatsapp_url) k.venster.location.href = r.whatsapp_url;
+        else if (k.venster) k.venster.close();
+        toon('Aanpassing gevraagd: de partner heeft een mail gekregen' + (r.whatsapp_url ? '; WhatsApp staat klaar om te versturen.' : '.'));
+        zetHuidig(r);
+        toonDetail(r);
+        $('detail').scrollTop = 0;
+      }).catch(function (err) { herstel(); if (k.venster) k.venster.close(); toon(err.message, true); });
+    });
   }
 
   // ---------- Scherm 1: formulier (samen invullen) ----------
@@ -744,7 +829,10 @@
           '" data-stap="' + i + '">' + (open ? 'Klaar' : 'Wijzig') + '</button>') + '</div>' +
         (open ? f.stapVelden(stap, p, false) : samenvatting(stap, p)) + '</section>';
     });
-    if (!uit) h += '<div class="acties"><button class="knop hoofd" data-actie="akkoord">Akkoord</button></div>';
+    if (!uit) {
+      h += '<div class="acties twee"><button class="knop licht" data-actie="aanpassing-vragen">Aanpassing vragen</button>' +
+        '<button class="knop hoofd" data-actie="akkoord">Akkoord</button></div>';
+    }
     if (p.status === 'Te tekenen' && !p.getekend_op) {
       h += '<div class="acties"><button class="knop licht" data-actie="terug-controle">Terug naar controle</button></div>';
     }
@@ -934,6 +1022,26 @@
       f.slaWachtendOp().then(function () { return roep('herinneringNu', [huidig.id]); }).then(function (r) {
         herstelH(); toon('Herinnering verstuurd.'); toonDetail(r); openMenuBuitenStatuskaart();
       }).catch(function (err) { herstelH(); toon(err.message, true); });
+      return;
+    }
+    if (actie === 'aanpassing-vragen') return aanpassingVragen(knop);
+    if (actie === 'aanpassing-mail' || actie === 'aanpassing-whatsapp') {
+      var wa = actie === 'aanpassing-whatsapp';
+      var vensterA = wa ? window.open('', '_blank') : null;
+      var herstelA = bezig(knop, wa ? 'WhatsApp openen…' : 'Versturen…');
+      roep('aanpassingSturen', [huidig.id, wa ? 'whatsapp' : 'mail']).then(function (r) {
+        herstelA();
+        if (vensterA && r.whatsapp_url) vensterA.location.href = r.whatsapp_url; else if (vensterA) vensterA.close();
+        toon(wa ? 'WhatsApp geopend met het bericht. Druk daar zelf op verzenden.' : 'Mail opnieuw verstuurd.');
+        toonDetail(r);
+      }).catch(function (err) { herstelA(); if (vensterA) vensterA.close(); toon(err.message, true); });
+      return;
+    }
+    if (actie === 'aanpassing-intrekken') {
+      bevestig('Aanpassing intrekken?', 'De status gaat terug naar "Wacht op controle"; je past het dan zelf aan. De partner ' +
+        'krijgt hier geen bericht over.', 'Intrekken').then(function (ja) {
+        if (ja) statusActie(knop, 'aanpassingIntrekken', 'Bezig…', 'Ingetrokken. Status: Wacht op controle.');
+      });
       return;
     }
     if (actie === 'plan-opnieuw') {

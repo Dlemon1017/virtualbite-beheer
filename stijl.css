@@ -73,7 +73,7 @@ input:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--foc
   vertical-align: middle; background: var(--geel-bg); color: var(--geel); text-transform: uppercase; letter-spacing: .04em; }
 .badge { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 4px 10px; white-space: nowrap; background: var(--grijs-bg); color: var(--grijs); }
 .b-Aangemaakt, .b-Uitgenodigd, .b-Deels-ingevuld, .b-Samen-invullen { background: var(--blauw-bg); color: var(--blauw); }
-.b-Wacht-op-controle, .b-Terug-bij-partner, .b-Opnieuw-te-tekenen { background: var(--geel-bg); color: var(--geel); }
+.b-Wacht-op-controle, .b-Aanpassing-gevraagd, .b-Opnieuw-te-tekenen { background: var(--geel-bg); color: var(--geel); }
 .b-Te-tekenen { background: var(--paars-bg); color: var(--paars); }
 .b-Getekend { background: var(--groen-bg); color: var(--groen); }
 
@@ -128,6 +128,13 @@ a.klein-knop { display: inline-flex; align-items: center; text-decoration: none;
 .groep-kop { display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: 600; }
 .voorbeeld { background: var(--bg); border-radius: 10px; padding: 12px; margin-top: 10px; font-size: 15px; font-variant-numeric: tabular-nums; }
 .acties { display: grid; gap: 8px; margin-top: 20px; }
+.acties.twee { grid-template-columns: 1fr 1fr; }
+.dialoog.groot { max-width: 520px; max-height: 88vh; overflow-y: auto; }
+.dialoog .aanpas-stap { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--zacht);
+  margin: 14px 0 2px; }
+.dialoog .vink-regel { margin: 8px 0 0; font-weight: 500; font-size: 15px; }
+.dialoog textarea { margin-bottom: 6px; }
+.dialoog .fout { min-height: 18px; margin-bottom: 8px; }
 dl { margin: 0; }
 /* Samenvatting: vraag klein en grijs boven het antwoord, onder elkaar (mobiel én desktop). */
 dl div { padding: 8px 0; border-top: 1px solid var(--lijn); }
