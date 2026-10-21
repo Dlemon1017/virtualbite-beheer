@@ -2,7 +2,7 @@
  * Thick shakes van F'real (21-10-2026): eigen laatste stap "Thick shakes" in het partnerformulier (veld `shakes`,
  * Velden.js; keuzes ja / later / nee). Eén plek voor de getallen en de teksten van die stap; gedeeld met partner- en
  * beheerpagina (geen Apps Script-services; getest in test/shakes.test.js). Afbeeldingen uit de presentatie van F'real
- * (bronnen/freal-*.jpg, gepubliceerd als freal/…). Nog geen automatische mail naar Interfastfood.
+ * (bronnen/freal-blender.jpg en freal-pick/peel/place.jpg, gepubliceerd als freal/…). Nog geen automatische mail naar Interfastfood.
  */
 
 var SHAKES = {
@@ -11,7 +11,7 @@ var SHAKES = {
   inkoop: 2.25,          // per shake
   tbCommissie: 0.14,     // commissie Thuisbezorgd (over de verkoopprijs)
   vbFee: 0.09,           // vergoeding Virtualbite
-  perDag: 5,             // Chickito Lelystad: gemiddeld 5 per dag
+  perDag: 5,             // huidige verkoop: gemiddeld 5 per dag (nergens een plaatsnaam noemen)
   dagenPerMaand: 30,
   huur: 50, huurMinMaanden: 18,
   occasion: 1750, nieuw: 3300, vriezer: 1250,
@@ -58,26 +58,30 @@ function shakesStapHtml(esc) {
   var p = function (t, cls) { return '<p' + (cls ? ' class="' + cls + '"' : '') + '>' + t + '</p>'; };
   return '<div class="shakes-stap">' +
     '<img class="sh-foto" src="freal/blender.jpg" alt="De F\'real-blender met drie thick shakes" width="960" height="916">' +
-    p('Thick shakes staan standaard op het Chickito-menu: vanille, aardbei, chocolade en Cookies &amp; Cream met Oreo ' +
+    p('Thick shakes staan standaard op het Chickito Chicken-menu: vanille, aardbei, chocolade en Cookies &amp; Cream met Oreo ' +
       '<span class="sh-label">best verkocht</span>.') +
     p('Ze worden kant-en-klaar en bevroren geleverd door onze partner Interfastfood.') +
     '<div class="sub-label">Zo werkt het</div>' +
-    '<div class="sh-zo">' +
-      '<img class="sh-stappen" src="freal/stappen.jpg" alt="Beker uit de vriezer, deksel eraf, in de blender" width="520" height="900">' +
-      '<div>' + p('Beker uit de vriezer, in de blender, en binnen 40 seconden klaar.') +
-        p('De blender is compact, heeft geen wateraansluiting nodig en vraagt nauwelijks extra handelingen.') +
-        p('De shakes kun je in je gewone vriezer bewaren.') + '</div>' +
-    '</div>' +
-    '<div class="melding-blok mb-info">Bij Chickito Lelystad zit in 1 op de 5 bestellingen een shake.</div>' +
+    '<div class="sh-zo">' + [
+      ['pick', 'Pick', 'Pak een beker uit de vriezer'],
+      ['peel', 'Peel', 'Haal het dekseltje eraf'],
+      ['place', 'Place', 'Zet hem in de blender: binnen 40 seconden klaar']
+    ].map(function (x, i) {
+      return '<div class="sh-zo-rij"><img src="freal/' + x[0] + '.jpg" alt="' + x[1] + '" width="560" height="280">' +
+        '<p><span class="sh-nr">' + (i + 1) + '</span>' + esc(x[2]) + '</p></div>';
+    }).join('') + '</div>' +
+    '<ul class="sh-punten"><li>De blender is compact en heeft geen wateraansluiting nodig</li>' +
+      '<li>Nauwelijks extra handelingen</li><li>De shakes bewaar je in je gewone vriezer</li></ul>' +
+    '<div class="melding-blok mb-info">1 op de 5 klanten van Chickito Chicken bestelt er een shake bij.</div>' +
     '<div class="sub-label">Rekenvoorbeeld (indicatie)</div>' +
     p('Bij gemiddeld ' + s.perDag + ' shakes per dag à ' + esc(euroKort(s.prijs)) + ' is dat ± ' +
       esc(euroKort(shakesOmzetPerMaand(s))) + ' extra omzet per maand. Na inkoop (' + esc(euroKort(s.inkoop)) + ' per shake), ' +
       'commissie Thuisbezorgd (' + Math.round(s.tbCommissie * 100) + '%) en vergoeding Virtualbite (' + Math.round(s.vbFee * 100) +
       '%) houd je daar ± ' + esc(euroKort(shakesPerMaand(s))) + ' per maand van over (excl. btw).') +
-    p('Indicatie; je eigen verkoop kan afwijken.', 'klein') +
+    p('Indicatie op basis van onze huidige verkoop; je eigen verkoop kan afwijken.', 'klein') +
     '<div class="sub-label">Tip</div>' +
     p('Je kunt de shakes ook op je eigen menu zetten, bijvoorbeeld een matcha shake met vanille als basis.') +
-    '<div class="groep sh-voorwaarden"><div class="groep-kop"><span>Speciale voorwaarden voor Chickito-partners</span></div>' +
+    '<div class="groep sh-voorwaarden"><div class="groep-kop"><span>Speciale voorwaarden voor Chickito Chicken-partners</span></div>' +
       p('Via Interfastfood hebben we aantrekkelijke voorwaarden afgesproken. Je test de blender eerst ' + s.proefMaanden +
         ' maanden gratis. Daarna kies je zelf:') +
       '<ul><li>Nieuwe blender kopen: ' + esc(euroKort(s.nieuw)) + '</li><li>Occasion kopen: ' + esc(euroKort(s.occasion)) + '</li>' +
