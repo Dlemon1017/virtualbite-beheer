@@ -242,3 +242,10 @@ select { width: 100%; font: inherit; color: var(--tekst); background: var(--veld
   border-radius: 10px; padding: 12px; min-height: 48px; }
 .uitnodigen { border-bottom: 1px solid var(--lijn); padding-bottom: 14px; margin-bottom: 4px; }
 .knoppen-rij { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+/* Eerste bestelling */
+.bestel-tabel { width: 100%; border-collapse: collapse; margin: 4px 0 12px; font-size: 14px; }
+.bestel-tabel th { text-align: left; font-weight: 600; color: var(--zacht); font-size: 12px; padding: 4px 6px; border-bottom: 1px solid var(--lijn); }
+.bestel-tabel td { padding: 6px; border-bottom: 1px solid var(--lijn); vertical-align: middle; }
+.bestel-tabel td:last-child, .bestel-tabel th:last-child { text-align: right; white-space: nowrap; }
+.bestel-tabel input { width: 80px; min-height: 36px; text-align: right; }
+.bestel-tabel .klein { font-size: 12px; color: var(--zacht); }

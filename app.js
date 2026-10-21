@@ -735,8 +735,141 @@
         '<div class="knoppen-rij">' + (v.lm === 'concept' ? '<button type="button" class="klein-knop" data-actie="lm-versturen">' +
           'Mail aan Leen Menken versturen</button>' : '') + (stappen.some(function (x) { return v[x[0]] === 'fout'; }) ?
           '<button type="button" class="klein-knop" data-actie="verwerk-opnieuw">Opnieuw proberen</button>' : '') + '</div>' : '') +
-      '</section>' + planningKaartHtml(p.planning);
+      '</section>' + bestellingKaartHtml(p) + planningKaartHtml(p.planning);
   }
+
+  // ---------- Kaart "Eerste bestelling" (startpakket; Bestelling.js) ----------
+  // Open formulier per partner in het geheugen, zodat het verversen van het detail de ingevulde aantallen niet wist.
+  var bestelOpen = null; // {id, startpakket, leveropties, droog, aantallen: {sku: n}, datum}
+
+  function euro(x) { return '€ ' + Number(x || 0).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
+
+  function bestellingKaartHtml(p) {
+    var e = p.eerste_bestelling || {};
+    var h = '<section class="kaart" id="bestelKaart"><h2>Eerste bestelling</h2>';
+    if (e.op) {
+      h += '<dl><div><dt>Geplaatst</dt><dd>' + esc(e.op + (e.order ? ' – ' + e.order : '')) + '</dd></div>' +
+        '<div><dt>Levering</dt><dd>' + esc(e.levering) + '</dd></div>' +
+        (e.bedrag !== null && e.bedrag !== undefined ? '<div><dt>Totaal</dt><dd>' + esc(euro(e.bedrag)) + '</dd></div>' : '') + '</dl>';
+    } else if (e.droog_op) {
+      h += '<p class="klein">Testpartner: droogloop gedaan op ' + esc(e.droog_op) + ' (niets in Shopify).</p>';
+    } else {
+      h += '<p class="klein">Het startpakket (tab Startpakket) als eerste bestelling in het bestelportaal plaatsen: Net 15, ' +
+        'geen bezorgkosten. De partner krijgt de gewone orderbevestiging van Shopify.' + (p.test ? ' Testpartner: alleen een droogloop.' : '') + '</p>';
+    }
+    var b = bestelOpen && bestelOpen.id === p.id ? bestelOpen : null;
+    if (!b) {
+      return h + '<div class="knoppen-rij"><button type="button" class="klein-knop" data-actie="bestel-open">' +
+        (e.op ? 'Nog een eerste bestelling…' : 'Eerste bestelling samenstellen') + '</button></div></section>';
+    }
+    if (b.laden) return h + '<p class="klein">Startpakket en leverdata ophalen…</p></section>';
+    if (!b.startpakket.length) {
+      return h + '<div class="melding-blok mb-let">Tab Startpakket is leeg.</div></section>';
+    }
+    h += '<table class="bestel-tabel"><thead><tr><th>Product</th><th>Aantal</th></tr></thead><tbody>' +
+      b.startpakket.map(function (r) {
+        return '<tr><td>' + esc(r.productnaam || r.sku) + '<div class="klein">' + esc(r.sku) + '</div></td>' +
+          '<td><input type="number" min="0" step="1" inputmode="numeric" class="bestel-aantal" data-sku="' + esc(r.sku) +
+          '" value="' + esc(String(b.aantallen[r.sku] || 0)) + '" aria-label="Aantal ' + esc(r.productnaam || r.sku) + '"></td></tr>';
+      }).join('') + '</tbody></table>' +
+      '<label for="bestelDatum">Leverdatum</label><select id="bestelDatum">' +
+      b.leveropties.map(function (o) {
+        return '<option value="' + esc(o.datum) + '"' + (o.datum === b.datum ? ' selected' : '') + '>' + esc(o.label) +
+          (o.vast ? '' : ' (afwijkende dag)') + ' – bestellen vóór ' + esc(o.deadline) + '</option>';
+      }).join('') + '</select>' +
+      '<div class="knoppen-rij"><button type="button" class="klein-knop" data-actie="bestel-plaatsen">' +
+      (b.droog ? 'Droogloop' : 'Bestelling plaatsen') + '</button>' +
+      '<button type="button" class="klein-knop" data-actie="bestel-sluit">Annuleer</button></div></section>';
+    return h;
+  }
+
+  function bestelOpenen(knop) {
+    var id = huidig.id;
+    bestelOpen = { id: id, laden: true };
+    toonDetailBehoud();
+    roep('eersteBestellingStart', [id]).then(function (d) {
+      if (!bestelOpen || bestelOpen.id !== id) return;
+      var aantallen = {};
+      d.startpakket.forEach(function (r) { aantallen[r.sku] = r.aantal; });
+      bestelOpen = { id: id, startpakket: d.startpakket, leveropties: d.leveropties, droog: d.droog, aantallen: aantallen,
+        datum: d.leveropties.length ? d.leveropties[0].datum : '' };
+      if (huidig && huidig.id === id) toonDetailBehoud();
+    }).catch(function (err) { bestelOpen = null; if (huidig && huidig.id === id) toonDetailBehoud(); toon(err.message, true); });
+  }
+
+  function toonDetailBehoud() { var top = $('detail').scrollTop; toonDetail(huidig); $('detail').scrollTop = top; }
+
+  /** Bevestigingsvenster met HTML-inhoud (al ge-escaped). */
+  function bevestigHtml(titel, html, jaTekst) {
+    return new Promise(function (klaar) {
+      var achter = document.createElement('div');
+      achter.className = 'dialoog-achter';
+      achter.innerHTML = '<div class="dialoog groot" role="dialog" aria-modal="true" aria-labelledby="d-titel">' +
+        '<h2 id="d-titel">' + esc(titel) + '</h2>' + html + '<div class="dialoog-knoppen">' +
+        '<button class="knop licht" data-k="nee">Annuleer</button><button class="knop" data-k="ja">' + esc(jaTekst) + '</button></div></div>';
+      function sluit(uitkomst) { achter.remove(); document.removeEventListener('keydown', toets); klaar(uitkomst); }
+      function toets(ev) { if (ev.key === 'Escape') sluit(false); }
+      achter.addEventListener('click', function (ev) {
+        if (ev.target === achter) sluit(false);
+        var k = ev.target.getAttribute('data-k');
+        if (k) sluit(k === 'ja');
+      });
+      document.addEventListener('keydown', toets);
+      document.body.appendChild(achter);
+      achter.querySelector('[data-k="ja"]').focus();
+    });
+  }
+
+  function bestelPlaatsen(knop) {
+    var b = bestelOpen;
+    if (!b || b.laden) return;
+    var id = b.id;
+    var herstel = bezig(knop, 'Prijzen berekenen…');
+    roep('eersteBestellingBereken', [id, b.aantallen, b.datum]).then(function (c) {
+      herstel();
+      var html = '<table class="bestel-tabel"><thead><tr><th>Product</th><th>Aantal</th><th>Bedrag</th></tr></thead><tbody>' +
+        c.regels.map(function (r) {
+          return '<tr><td>' + esc(r.naam) + '</td><td>' + esc(String(r.aantal)) + '</td><td>' + esc(euro(r.totaal)) + '</td></tr>';
+        }).join('') + '</tbody></table><p>' +
+        (c.indicatief ? 'Totaal (lijstprijzen, indicatief): ' + esc(euro(c.totaal)) :
+          'Subtotaal ' + esc(euro(c.subtotaal)) + ' + btw ' + esc(euro(c.btw)) + ' = <strong>' + esc(euro(c.totaal)) + '</strong>') +
+        '<br>Geen bezorgkosten · betaaltermijn Net 15<br>Levering: <strong>' + esc(c.levermoment) + '</strong>' +
+        (c.afwijking ? ' (afwijkende dag: "Eerste bestelling (startpakket)")' : '') + '</p>' +
+        (c.droog ? '<div class="melding-blok mb-let">Testpartner: droogloop. Er wordt niets in Shopify geplaatst; je krijgt een ' +
+          '[TEST]-mail met deze bestelling.</div>' : '') +
+        (c.al_geplaatst ? '<div class="melding-blok mb-let">Let op: er is al een eerste bestelling geplaatst (' + esc(c.geplaatst_op) +
+          '). Dit wordt een tweede order.</div>' : '');
+      return bevestigHtml(c.droog ? 'Droogloop eerste bestelling' : 'Bestelling plaatsen?', html, c.droog ? 'Droogloop' : 'Plaatsen')
+        .then(function (ja) {
+          if (!ja) return null;
+          if (!c.al_geplaatst) return true;
+          return bevestig('Echt een tweede order?', 'Er staat al een eerste bestelling in Shopify. Weet je zeker dat je nóg een ' +
+            'order wilt plaatsen?', 'Ja, nog een order', true);
+        }).then(function (ja) {
+          if (!ja) return;
+          var herstel2 = bezig(knop, c.droog ? 'Droogloop…' : 'Plaatsen…');
+          return roep('eersteBestellingPlaatsen', [id, b.aantallen, b.datum, c.al_geplaatst]).then(function (r) {
+            herstel2();
+            bestelOpen = null;
+            toon(c.droog ? 'Droogloop gedaan (niets in Shopify).' : 'Bestelling geplaatst: ' + (r.eerste_bestelling || {}).order + '.');
+            zetHuidig(r);
+            toonDetailBehoud();
+          }, function (err) { herstel2(); toon(err.message, true); });
+        });
+    }).catch(function (err) { herstel(); toon(err.message, true); });
+  }
+
+  document.addEventListener('input', function (ev) {
+    var t = ev.target;
+    if (!bestelOpen || bestelOpen.laden) return;
+    if (t.classList && t.classList.contains('bestel-aantal')) {
+      bestelOpen.aantallen[t.getAttribute('data-sku')] = Math.max(0, Math.floor(Number(t.value) || 0));
+    }
+    if (t.id === 'bestelDatum') bestelOpen.datum = t.value;
+  });
+  document.addEventListener('change', function (ev) {
+    if (bestelOpen && !bestelOpen.laden && ev.target.id === 'bestelDatum') bestelOpen.datum = ev.target.value;
+  });
 
   /** Kaart "Onboarding en training": wat de partner heeft gekozen (agendawijzigingen van jou worden overgenomen). */
   function planningKaartHtml(pl) {
@@ -1040,6 +1173,9 @@
       });
       return;
     }
+    if (actie === 'bestel-open') return bestelOpenen(knop);
+    if (actie === 'bestel-sluit') { bestelOpen = null; toonDetailBehoud(); return; }
+    if (actie === 'bestel-plaatsen') return bestelPlaatsen(knop);
     if (actie === 'verwerk-opnieuw') return statusActie(knop, 'verwerkOpnieuw', 'Bezig…', 'De mislukte stappen worden opnieuw geprobeerd (± 1–3 min).');
     if (actie === 'aanpassing-mail' || actie === 'aanpassing-whatsapp') {
       var wa = actie === 'aanpassing-whatsapp';
