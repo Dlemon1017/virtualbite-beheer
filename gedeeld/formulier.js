@@ -421,8 +421,8 @@
 
     function veldBlok(d, p, uit) {
       return '<div class="veld" data-rij="' + esc(d.veld) + '">' + (d.inhoud ? window[d.inhoud](esc) : '') + // vaste uitleg (bijv. shakes)
-        labelHtml(d) + veldInvoer(d, p, uit) + (d.naKeuze ? window[d.naKeuze](esc) : '') +
-        '<div class="veld-status" data-status="' + esc(d.veld) + '"></div></div>';
+        labelHtml(d) + veldInvoer(d, p, uit) + '<div class="veld-status" data-status="' + esc(d.veld) + '"></div>' +
+        (d.naKeuze ? window[d.naKeuze](esc) : '') + '</div>';
     }
 
     f.werkZichtbaarheidBij = function () {

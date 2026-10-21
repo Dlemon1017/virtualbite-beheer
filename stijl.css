@@ -260,7 +260,7 @@ select { width: 100%; font: inherit; color: var(--tekst); background: var(--veld
 .shakes-stap .sub-label { font-size: 14px; font-weight: 600; margin: 16px 0 6px; }
 .shakes-stap .melding-blok { margin: 14px 0 0; }
 .sh-foto { display: block; width: 100%; height: auto; border-radius: 12px; margin: 0 0 14px; }
-.sh-zo { display: grid; grid-template-columns: 38% 1fr; gap: 14px; align-items: center; }
+.sh-zo { display: grid; grid-template-columns: 38% 1fr; gap: 14px; align-items: start; }
 .sh-stappen { display: block; width: 100%; height: auto; border-radius: 10px; }
 .sh-label { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600;
   background: var(--accent-zacht); color: var(--groen); white-space: nowrap; }
@@ -268,5 +268,5 @@ select { width: 100%; font: inherit; color: var(--tekst); background: var(--veld
 .sh-voorwaarden .groep-kop { margin-bottom: 8px; }
 .sh-voorwaarden ul { margin: 0 0 10px; padding-left: 20px; line-height: 1.6; }
 .sh-voorwaarden p:last-child { margin-bottom: 0; }
-.sh-download { margin: 12px 0 0; }
+.sh-download { margin: 8px 0 0; }
 .sh-download a { color: var(--groen); font-weight: 600; }
