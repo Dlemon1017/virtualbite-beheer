@@ -86,11 +86,15 @@
   window.addEventListener('scroll', sluitUitleg, true);
 
   /** Samenvatting van een stap (alleen-lezen), in de volgorde van het formulier. Beheer (controle) en partner (overzicht). */
-  window.VBSamenvatting = function (stap, p) {
+  window.VBSamenvatting = function (stap, p, beheer) {
     var regels = [];
     stap.velden.forEach(function (d) {
       if (!veldZichtbaar(d, p) || /_(huisnummer|toevoeging)$/.test(d.veld)) return;
       var w;
+      if (beheer && d.beheerTekst) { // beheer: korte tekst voor Virtualbite (bijv. "Shakes: nee – categorie uitzetten …")
+        regels.push([d.beheerLabel || d.label, window[d.beheerTekst](p)]);
+        return;
+      }
       if (d.rij) { // adres: als één regel
         var pre = d.veld.replace('_postcode', '_');
         w = [p[pre + 'straat'], huisnummerMetToevoeging(p[pre + 'huisnummer'], p[pre + 'toevoeging'])].filter(Boolean).join(' ') +
@@ -117,6 +121,38 @@
     }).join('') + '</dl>';
   };
 
+  // ---------- Infovenster (shakes): eigen venster met onderaan dezelfde keuze als in het formulier ----------
+  var PRESENTATIE_FREAL = 'https://teken.virtualbite.nl/Presentatie_Freal.pdf';
+  function toonInfoVenster(soort, waarde, uit, kies) {
+    var d = veldDef(soort);
+    var achter = document.createElement('div');
+    achter.className = 'dialoog-achter';
+    achter.innerHTML = '<div class="dialoog groot info-venster" role="dialog" aria-modal="true" aria-labelledby="iv-titel">' +
+      '<button type="button" class="iv-sluit" data-iv="sluit" aria-label="Sluiten">×</button>' +
+      '<h2 id="iv-titel">' + esc(d.kop || d.label) + '</h2>' + shakesInfoHtml(esc, PRESENTATIE_FREAL) +
+      (uit ? '' : '<div class="keuze onder-elkaar" role="group" aria-label="' + esc(d.label) + '">' +
+        KEUZES[d.keuzes].map(function (k) {
+          return '<button type="button" data-iv-keuze="' + esc(k[0]) + '" aria-pressed="' + (waarde === k[0]) + '">' + esc(k[1]) + '</button>';
+        }).join('') + '</div>') + '</div>';
+    var vorige = document.activeElement;
+    function sluit() {
+      achter.remove();
+      document.removeEventListener('keydown', toets);
+      document.body.classList.remove('venster-open');
+      if (vorige && vorige.focus) vorige.focus();
+    }
+    function toets(e) { if (e.key === 'Escape') sluit(); }
+    achter.addEventListener('click', function (e) {
+      if (e.target === achter || (e.target.closest && e.target.closest('[data-iv="sluit"]'))) { sluit(); return; }
+      var k = e.target.closest && e.target.closest('[data-iv-keuze]');
+      if (k) { kies(k.getAttribute('data-iv-keuze')); sluit(); }
+    });
+    document.addEventListener('keydown', toets);
+    document.body.appendChild(achter);
+    document.body.classList.add('venster-open');
+    achter.querySelector('.iv-sluit').focus();
+  }
+
   window.VBSluitUitleg = sluitUitleg;
   window.VBZetKeuze = zetKeuze;
 
@@ -136,11 +172,19 @@
       var w = p[d.veld] == null ? '' : p[d.veld];
       var vb = d.voorbeeld ? ' placeholder="' + esc(d.voorbeeld) + '"' : '';
       if (d.soort === 'keuze') {
-        return '<div class="keuze" data-keuze="' + esc(d.veld) + '" role="group" aria-label="' + esc(d.label) + '">' +
+        if (!w && d.standaard) { // standaardkeuze (bijv. shakes: Ja) tonen én opslaan
+          w = d.standaard;
+          if (!uit) standaardOpslaan[d.veld] = w;
+        }
+        return (d.intro ? '<p class="veld-intro">' + esc(d.intro) + '</p>' : '') +
+          '<div class="keuze' + (d.onderElkaar ? ' onder-elkaar' : '') + '" data-keuze="' + esc(d.veld) + '" role="group" aria-label="' +
+          esc(d.label) + '">' +
           KEUZES[d.keuzes].map(function (k) {
             return '<button type="button" data-waarde="' + esc(k[0]) + '" aria-pressed="' + (w === k[0]) + '"' + dis + '>' +
               esc(k[1]) + '</button>';
-          }).join('') + '</div>';
+          }).join('') + '</div>' +
+          (d.infoVenster ? '<button type="button" class="link-knop" data-actie="info-venster" data-venster="' + esc(d.veld) + '">' +
+            'Bekijk hoe het werkt en de voorwaarden</button>' : '');
       }
       if (d.soort === 'vinkje') {
         return '<label class="vink-regel"><input type="checkbox" id="' + id + '" data-vinkje="' + esc(d.veld) + '"' +
@@ -382,7 +426,16 @@
     }
 
     /** Eén stap als velden; velden met dezelfde `rij` naast elkaar, `kop` als tussenkop. */
+    var standaardOpslaan = {};
     f.stapVelden = function (stap, p, uit) {
+      setTimeout(function () { // na het tekenen: standaardkeuzes opslaan (alleen als er nog niets is gekozen)
+        Object.keys(standaardOpslaan).forEach(function (veld) {
+          if (!f.huidig || f.huidig[veld]) return;
+          f.huidig[veld] = standaardOpslaan[veld];
+          bewaar(veld, standaardOpslaan[veld], true);
+        });
+        standaardOpslaan = {};
+      }, 0);
       var h = '';
       var i = 0;
       while (i < stap.velden.length) {
@@ -907,6 +960,14 @@
         }).catch(function (err) { if (cfg.melding) cfg.melding(err.message, true); });
       } else if (actie === 'wijzig-bsn') {
         $('bsn-tonen').hidden = true; $('v-bsn').hidden = false; $('v-bsn').focus();
+      } else if (actie === 'info-venster') {
+        var vveld = knop.getAttribute('data-venster');
+        var groepV = q('[data-keuze="' + vveld + '"]');
+        var uitV = !groepV || !!groepV.querySelector('button:disabled');
+        toonInfoVenster(vveld, f.huidig[vveld], uitV, function (waarde) {
+          var b = groepV && groepV.querySelector('button[data-waarde="' + waarde + '"]');
+          if (b) b.click();
+        });
       } else if (actie === 'afstanden') {
         f.planAfstanden(true);
 

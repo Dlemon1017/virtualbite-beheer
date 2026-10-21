@@ -550,7 +550,7 @@
         regel('Herinneringen', p.uitnodiging_verstuurd_op ? 'Geen gepland' : 'Starten na de uitnodiging (dag 3, 5 en 7)')) +
       '</dl>' + uitnodigingKnoppen(p) + '</section>' +
       '<details class="kaart ingevuld"><summary>Bekijk ingevulde gegevens</summary>' +
-      FORMULIER_STAPPEN.map(function (st) { return '<h3 class="tussenkop">' + esc(st.titel) + '</h3>' + VBSamenvatting(st, p); }).join('') +
+      FORMULIER_STAPPEN.map(function (st) { return '<h3 class="tussenkop">' + esc(st.titel) + '</h3>' + VBSamenvatting(st, p, true); }).join('') +
       '</details>';
     $('detailInhoud').innerHTML = h;
   }
@@ -573,7 +573,7 @@
       (wa ? '<button type="button" class="klein-knop" data-actie="aanpassing-whatsapp">Via WhatsApp sturen</button>' : '') +
       '<button type="button" class="klein-knop" data-actie="aanpassing-intrekken">Intrekken (zelf aanpassen)</button></div></section>' +
       '<details class="kaart ingevuld"><summary>Bekijk ingevulde gegevens</summary>' +
-      FORMULIER_STAPPEN.map(function (st) { return '<h3 class="tussenkop">' + esc(st.titel) + '</h3>' + VBSamenvatting(st, p); }).join('') +
+      FORMULIER_STAPPEN.map(function (st) { return '<h3 class="tussenkop">' + esc(st.titel) + '</h3>' + VBSamenvatting(st, p, true); }).join('') +
       '</details>';
     $('detailInhoud').innerHTML = h;
   }
@@ -1059,7 +1059,7 @@
 
   /** Samenvatting van een stap (alleen-lezen), in de volgorde van het formulier. */
   function samenvatting(stap, p) {
-    return VBSamenvatting(stap, p);
+    return VBSamenvatting(stap, p, true);
   }
 
   function werkVoorbeeldBij() {
