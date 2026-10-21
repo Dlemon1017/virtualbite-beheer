@@ -45,7 +45,7 @@ function shakesStapHtml(esc) {
     return '<div class="sh-blok">' + (kop ? '<div class="sub-label">' + kop + '</div>' : '') + inhoud + '</div>';
   };
   return '<div class="shakes-stap">' +
-    '<img class="sh-foto" src="freal/blender.jpg?v=3" alt="Drie thick shakes naast de F\'real-blender" width="1120" height="840">' +
+    '<img class="sh-foto" src="freal/blender.jpg?v=4" alt="Drie thick shakes naast de F\'real-blender" width="960" height="916">' +
     p('Thick shakes staan standaard op het Chickito Chicken-menu: vanille, aardbei, chocolade en Cookies &amp; Cream met Oreo ' +
       '<span class="sh-label">best verkocht</span>.') +
     p('Ze worden kant-en-klaar en bevroren geleverd door onze partner Interfastfood.') +
