@@ -79,8 +79,8 @@ function shakesStapHtml(esc) {
       'commissie Thuisbezorgd (' + Math.round(s.tbCommissie * 100) + '%) en vergoeding Virtualbite (' + Math.round(s.vbFee * 100) +
       '%) houd je daar ± ' + esc(euroKort(shakesPerMaand(s))) + ' per maand van over (excl. btw).') +
     p('Indicatie op basis van onze huidige verkoop; je eigen verkoop kan afwijken.', 'klein') +
-    '<div class="sub-label">Tip</div>' +
-    p('Je kunt de shakes ook op je eigen menu zetten, bijvoorbeeld een matcha shake met vanille als basis.') +
+    p('<strong>Tip:</strong> de shakes passen ook op je eigen menu. Voeg aan een vanilleshake een siroop of saus naar keuze ' +
+      'toe en je maakt zo je eigen smaak, bijvoorbeeld matcha, banaan of Bueno.', 'sh-tip') +
     '<div class="groep sh-voorwaarden"><div class="groep-kop"><span>Speciale voorwaarden voor Chickito Chicken-partners</span></div>' +
       p('Via Interfastfood hebben we aantrekkelijke voorwaarden afgesproken. Je test de blender eerst ' + s.proefMaanden +
         ' maanden gratis. Daarna kies je zelf:') +

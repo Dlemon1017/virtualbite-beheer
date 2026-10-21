@@ -267,6 +267,7 @@ select { width: 100%; font: inherit; color: var(--tekst); background: var(--veld
 .shakes-stap .sh-zo-rij p { margin: 0; display: flex; gap: 10px; align-items: baseline; }
 .sh-nr { flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-size: 12px;
   font-weight: 600; background: var(--accent-zacht); color: var(--groen); transform: translateY(-1px); }
+.shakes-stap .sh-tip { margin-top: 16px; }
 .sh-punten { margin: 12px 0 0; padding-left: 20px; line-height: 1.6; }
 .sh-label { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600;
   background: var(--accent-zacht); color: var(--groen); white-space: nowrap; }
