@@ -229,6 +229,14 @@
         '<div class="wanneer">' + esc([p.id, p.stad, p.customer_facing_email].filter(Boolean).join(' · ')) + '</div></div>' +
         badge(p.status) + '</button>';
     }).join('') : '<div class="leeg">Nog geen partners. Maak er een aan met "Nieuwe partner".</div>';
+    // Lijstje "Nog te doen": shakes "Ik beslis later" → nabellen (weg zodra je de keuze in "⋯ Beheer" zet)
+    var later = partners.filter(function (p) { return p.status !== 'Geannuleerd' && p.shakes === 'later'; });
+    $('teDoen').hidden = !later.length;
+    $('teDoen').innerHTML = later.length ? '<h2>Nog te doen</h2>' + later.map(function (p) {
+      return '<button class="item" data-id="' + esc(p.id) + '"><div class="wie"><div class="naam">Shakes nabellen: ' +
+        esc(p.naam || p.id) + (p.test ? testTag() : '') + '</div><div class="wanneer">' + esc(p.id) + ' · koos "Ik beslis later"' +
+        '</div></div></button>';
+    }).join('') : '';
   }
 
   /** Lijst: eerst wat we al hebben (met de laatst bekende naam en status uit de details), daarna vers van de server. */
@@ -257,6 +265,10 @@
   }
 
   $('lijst').addEventListener('click', function (e) {
+    var item = e.target.closest('.item');
+    if (item) openDetail(item.getAttribute('data-id'));
+  });
+  $('teDoen').addEventListener('click', function (e) {
     var item = e.target.closest('.item');
     if (item) openDetail(item.getAttribute('data-id'));
   });
@@ -680,6 +692,13 @@
         '<div class="klein">Moet uniek zijn over alle partners.</div>')) +
       veld('email_doorsturen', 'Eigen mailadres voor doorsturen', mail, '<div class="klein">Hierheen wordt ' +
         esc(p.customer_facing_email) + ' na tekenen doorgestuurd.</div>') +
+      // Shakes: ook na tekenen aan te passen (bijv. na nabellen); apart opgeslagen (partnerZetShakes).
+      (p.status !== 'Geannuleerd' ? '<div class="veld" data-rij="shakes-beheer"><label for="v-shakes-beheer">Shakes</label>' +
+        '<select id="v-shakes-beheer" data-shakes-beheer>' + [['', 'Nog niet gekozen'], ['ja', 'Ja (proef)'],
+          ['later', 'Later beslissen – nabellen'], ['nee', 'Nee – categorie uitzetten']].map(function (o) {
+          return '<option value="' + o[0] + '"' + (String(p.shakes || '') === o[0] ? ' selected' : '') + (o[0] ? '' : ' disabled') + '>' +
+            esc(o[1]) + '</option>';
+        }).join('') + '</select><div class="veld-status" data-status="shakes-beheer"></div></div>' : '') +
       (['Getekend', 'Geannuleerd'].indexOf(p.status) === -1 ?
         '<button class="knop gevaar mt" data-actie="annuleren">Partner annuleren</button>' : '');
   }
@@ -862,6 +881,20 @@
         });
     }).catch(function (err) { herstel(); toon(err.message, true); });
   }
+
+  // Shakes in "⋯ Beheer" (ook na tekenen): meteen opslaan
+  document.addEventListener('change', function (ev) {
+    var sel = ev.target.closest && ev.target.closest('[data-shakes-beheer]');
+    if (!sel || !huidig) return;
+    var id = huidig.id;
+    var st = document.querySelector('[data-status="shakes-beheer"]');
+    if (st) st.textContent = 'Opslaan…';
+    roep('shakes', [id, sel.value]).then(function (r) {
+      if (huidig && huidig.id === id) { zetHuidig(r); details[id] = r; }
+      if (st) st.textContent = 'Opgeslagen';
+      if (lijstCache) lijstCache.forEach(function (x) { if (x.id === id) x.shakes = sel.value; });
+    }).catch(function (err) { if (st) st.textContent = ''; toon(err.message, true); });
+  });
 
   document.addEventListener('input', function (ev) {
     var t = ev.target;

@@ -76,7 +76,7 @@ var KEUZES = {
   rechtsvorm: [['eenmanszaak', 'Eenmanszaak'], ['vof', 'Vof'], ['bv', 'B.V.'], ['anders', 'Anders']],
   ja_nee: [['ja', 'Ja'], ['nee', 'Nee']],
   koppeling: [['tconnect', 'T-Connect'], ['terminal', 'Terminal'], ['pos_api', 'POS-API'], ['other', 'Other']],
-  shakes: [['ja', 'Ja, ik doe mee aan de gratis proefperiode van 2 maanden'], ['nee', 'Nee, geen shakes op mijn menu']]
+  shakes: [['ja', 'Ja, ik wil de gratis proef'], ['later', 'Ik beslis later'], ['nee', 'Nee, zet de shakes uit voor mijn locatie']]
 };
 
 
@@ -122,13 +122,7 @@ var FORMULIER_STAPPEN = [
     { veld: 'koppeling', label: 'Hoe ontvang je de bestellingen? (koppeling)', soort: 'keuze', keuzes: 'koppeling', verplicht: true },
     { veld: 'koppeling_anders', label: 'Toelichting koppeling', soort: 'tekst', voorbeeld: 'Bijv. de naam van je kassasysteem',
       verplicht: function (g) { return g.koppeling === 'other'; }, toon: function (g) { return g.koppeling === 'other'; } },
-    { veld: 'afhalen', label: 'Kunnen klanten afhalen?', soort: 'keuze', keuzes: 'ja_nee', verplicht: true },
-    // Thick shakes (F'real, 21-10-2026): standaard Ja (wordt bij het tonen opgeslagen); infovenster en getallen: Shakes.js.
-    // Niet verplicht: partners die al verder waren, hebben de vraag nooit gezien (beheer toont dan niets).
-    { veld: 'shakes', label: 'Doe je mee met de shakes?', soort: 'keuze', keuzes: 'shakes', verplicht: false, standaard: 'ja',
-      onderElkaar: true, kop: 'Thick shakes (F\'real)', infoVenster: 'shakes', beheerLabel: 'Shakes', beheerTekst: 'shakesTekst',
-      intro: 'Thick shakes van F\'real: vanille, aardbei, chocolade en Cookies & Cream (met Oreo). In 40 seconden klaar. ' +
-        'In 1 op de 5 bestellingen zit een shake. Gratis 2 maanden proberen.' }
+    { veld: 'afhalen', label: 'Kunnen klanten afhalen?', soort: 'keuze', keuzes: 'ja_nee', verplicht: true }
   ] },
   { titel: 'Bezorggebied', velden: [
     { veld: 'postcodes_gewenst', label: 'Postcodes', soort: 'postcoderegels', verplicht: true, voorbeeld: 'Bijv. 8231-8245' }
@@ -141,6 +135,14 @@ var FORMULIER_STAPPEN = [
   // Andere virtuele merken vult alleen Virtualbite in (controlescherm; externe_merken_ja/externe_merken in PartnerRegels.js).
   { titel: 'Overig', velden: [
     { veld: 'opmerkingen', label: 'Opmerkingen', soort: 'tekst', verplicht: false }
+  ] },
+  // Thick shakes (F'real, 21-10-2026): eigen laatste stap vóór het overzicht. Uitleg en getallen: Shakes.js (inhoud).
+  // Standaard Ja (wordt bij het tonen opgeslagen). Niet verplicht: partners die al verder waren, lopen niet vast; de
+  // partnerpagina stuurt ze wel eerst naar deze stap zolang er niets is gekozen.
+  { titel: 'Thick shakes', velden: [
+    { veld: 'shakes', label: 'Wat kies je?', soort: 'keuze', keuzes: 'shakes', verplicht: false, standaard: 'ja', onderElkaar: true,
+      kop: 'Thick shakes op het Chickito-menu', inhoud: 'shakesStapHtml', naKeuze: 'shakesDownloadHtml',
+      beheerLabel: 'Shakes', beheerTekst: 'shakesTekst' }
   ] }
 ];
 

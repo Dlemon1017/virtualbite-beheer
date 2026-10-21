@@ -61,6 +61,8 @@ input:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--foc
 
 /* Lijst */
 .lijst { padding: 0; }
+.te-doen { padding: 0; overflow: hidden; }
+.te-doen h2 { margin: 16px 18px 4px; }
 .item { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: none; border: 0;
   border-top: 1px solid var(--lijn); padding: 14px 18px; color: var(--tekst); }
 .item:first-child { border-top: 0; }
@@ -250,27 +252,21 @@ select { width: 100%; font: inherit; color: var(--tekst); background: var(--veld
 .bestel-tabel input { width: 80px; min-height: 36px; text-align: right; }
 .bestel-tabel .klein { font-size: 12px; color: var(--zacht); }
 
-/* Thick shakes (F'real): vraag en infovenster (partnerpagina en "Samen invullen") */
-.veld-intro { margin: 0 0 10px; color: var(--zacht); font-size: 15px; line-height: 1.45; }
+/* Thick shakes (F'real): stap "Thick shakes" (partnerpagina en "Samen invullen"); verder de gewone stijl van het formulier */
 .keuze.onder-elkaar { flex-direction: column; }
 .keuze.onder-elkaar button { text-align: left; padding: 12px 14px; line-height: 1.3; }
-.link-knop { background: none; border: 0; padding: 10px 0 2px; color: var(--groen); font-weight: 600; font-size: 15px;
-  text-align: left; cursor: pointer; }
-.link-knop::after { content: " ›"; }
-body.venster-open { overflow: hidden; }
-.info-venster { position: relative; max-width: 560px; padding: 24px 20px 20px; }
-.info-venster h2 { font-size: 22px; letter-spacing: -.01em; margin: 0 36px 14px 0; }
-.info-venster p { color: var(--tekst); margin: 0 0 10px; line-height: 1.45; }
-.info-venster ul { margin: 0 0 10px; padding-left: 20px; line-height: 1.6; }
-.info-venster .sh-sectie { border-top: 1px solid var(--lijn); padding-top: 14px; margin-top: 14px; }
-.info-venster h3 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--zacht);
-  margin: 0 0 8px; }
-.info-venster .sh-uitgelicht { background: var(--accent-zacht); border-radius: 14px; padding: 14px 16px; font-size: 16px;
-  font-weight: 500; }
-.info-venster .sh-klein { color: var(--zacht); font-size: 13px; }
-.info-venster .sh-label { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 12px;
-  font-weight: 600; background: var(--accent-zacht); color: var(--groen); }
-.info-venster .sh-download { color: var(--groen); font-weight: 600; }
-.info-venster .keuze { margin-top: 16px; }
-.iv-sluit { position: absolute; top: 14px; right: 14px; width: 32px; height: 32px; border-radius: 50%; border: 0;
-  background: var(--veld); color: var(--zacht); font-size: 20px; line-height: 1; cursor: pointer; }
+.shakes-stap p { margin: 0 0 10px; line-height: 1.5; }
+.shakes-stap p.klein { margin-top: -4px; }
+.shakes-stap .sub-label { font-size: 14px; font-weight: 600; margin: 16px 0 6px; }
+.shakes-stap .melding-blok { margin: 14px 0 0; }
+.sh-foto { display: block; width: 100%; height: auto; border-radius: 12px; margin: 0 0 14px; }
+.sh-zo { display: grid; grid-template-columns: 38% 1fr; gap: 14px; align-items: center; }
+.sh-stappen { display: block; width: 100%; height: auto; border-radius: 10px; }
+.sh-label { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  background: var(--accent-zacht); color: var(--groen); white-space: nowrap; }
+.sh-voorwaarden { margin: 16px 0 6px; }
+.sh-voorwaarden .groep-kop { margin-bottom: 8px; }
+.sh-voorwaarden ul { margin: 0 0 10px; padding-left: 20px; line-height: 1.6; }
+.sh-voorwaarden p:last-child { margin-bottom: 0; }
+.sh-download { margin: 12px 0 0; }
+.sh-download a { color: var(--groen); font-weight: 600; }
