@@ -717,24 +717,28 @@
   /** Kaart "Getekend": wat er na tekenen automatisch is gedaan, met links naar de stukken. */
   function getekendKaartHtml(p) {
     var v = p.verwerkt || {};
-    var stappen = [['pdf', 'Getekende overeenkomst (PDF)'], ['koppel', 'Customer-facing mail'], ['tb', 'TB-formulier'],
-      ['mail', 'Mail aan partner (cc jou)'], ['tbmail', 'Aanmelding Thuisbezorgd'],
-      ['shopify', 'Bestelportaal (Shopify)' + (p.lm_klantnummer ? ' – klantnummer ' + p.lm_klantnummer : '')],
+    var stappen = [['pdf', 'Getekende overeenkomst (PDF)'],
+      ['koppel', p.customer_facing_email ? 'Mailadres ' + p.customer_facing_email : 'Mailadres @chickito.nl'], ['tb', 'TB-formulier'],
+      ['mail', 'Getekende stukken naar partner'], ['tbmail', 'Aanmelding Thuisbezorgd'],
+      ['shopify', 'Shopify-klant' + (p.lm_klantnummer ? ' (nr. ' + p.lm_klantnummer + ')' : '')],
       ['portaal', 'Uitnodiging bestelportaal'], ['lijst', 'Partnerlijst'], ['lm', 'Mail aan Leen Menken'], ['melding', 'Melding aan jou']];
-    var stand = function (x) {
-      return x === 'ok' ? '✓' : x === 'nvt' ? 'n.v.t.' : x === 'uit' ? 'uitgezet' : x === 'droog' ? 'droogloop (niets gedaan)' :
+    var inricht = ['shopify', 'portaal', 'lijst', 'lm'];
+    var stand = function (x, stap) {
+      return x === 'ok' ? '✓' : x === 'nvt' ? (inricht.indexOf(stap) !== -1 ? 'n.v.t. (handmatig gedaan)' : 'n.v.t.') :
+        x === 'uit' ? 'uitgezet' : x === 'droog' ? 'droogloop (niets gedaan)' :
         x === 'concept' ? 'klaar als concept' : x === 'fout' ? 'mislukt (wordt dagelijks opnieuw geprobeerd)' : 'bezig…';
     };
     var link = function (url, tekst) { return url ? '<a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(tekst) + '</a>' : ''; };
     var s = p.stukken || {};
     return '<section class="kaart" id="tekenKaart"><h2>Getekend</h2><dl>' +
-      stappen.map(function (x) { return '<div><dt>' + esc(x[1]) + '</dt><dd>' + esc(stand(v[x[0]])) + '</dd></div>'; }).join('') +
+      stappen.map(function (x) {
+        return '<div><dt>' + esc(x[1]) + '</dt><dd>' + esc(stand(v[x[0]], x[0])) + (x[0] === 'lm' && v.lm === 'concept' ?
+          ' <button type="button" class="klein-knop" data-actie="lm-versturen">Versturen</button>' : '') + '</dd></div>';
+      }).join('') +
       '<div><dt>Stukken</dt><dd>' + [link(s.overeenkomst, 'Overeenkomst (getekend)'), link(s.tb, 'TB-formulier (getekend)'),
         link(s.zwh, 'Zo werkt het'), link(s.av, 'Algemene Partnervoorwaarden'), link(s.map, 'Map in Drive')].filter(Boolean).join('<br>') +
-      '</dd></div></dl>' + (v.lm === 'concept' || stappen.some(function (x) { return v[x[0]] === 'fout'; }) ?
-        '<div class="knoppen-rij">' + (v.lm === 'concept' ? '<button type="button" class="klein-knop" data-actie="lm-versturen">' +
-          'Mail aan Leen Menken versturen</button>' : '') + (stappen.some(function (x) { return v[x[0]] === 'fout'; }) ?
-          '<button type="button" class="klein-knop" data-actie="verwerk-opnieuw">Opnieuw proberen</button>' : '') + '</div>' : '') +
+      '</dd></div></dl>' + (stappen.some(function (x) { return v[x[0]] === 'fout'; }) ?
+        '<div class="knoppen-rij"><button type="button" class="klein-knop" data-actie="verwerk-opnieuw">Opnieuw proberen</button></div>' : '') +
       '</section>' + bestellingKaartHtml(p) + planningKaartHtml(p.planning);
   }
 
