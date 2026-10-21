@@ -7,10 +7,6 @@
 
 var SHAKES = {
   prijs: 5.95,           // verkoopprijs per shake (incl. 9% btw)
-  btw: 0.09,
-  inkoop: 2.25,          // per shake
-  tbCommissie: 0.14,     // commissie Thuisbezorgd (over de verkoopprijs)
-  vbFee: 0.09,           // vergoeding Virtualbite
   perDag: 5,             // huidige verkoop: gemiddeld 5 per dag (nergens een plaatsnaam noemen)
   dagenPerMaand: 30,
   huur: 50, huurMinMaanden: 18,
@@ -18,22 +14,10 @@ var SHAKES = {
   proefMaanden: 2, betaalMaanden: 12
 };
 
-/** Wat je per shake overhoudt (excl. btw): verkoopprijs excl. btw − inkoop − commissie − vergoeding. */
-function shakeMarge(s) {
-  s = s || SHAKES;
-  return Math.round((s.prijs / (1 + s.btw) - s.inkoop - s.prijs * s.tbCommissie - s.prijs * s.vbFee) * 100) / 100;
-}
-
 /** Omzet per maand (incl. btw, zoals de klant betaalt) bij `perDag` shakes; hele euro's. */
 function shakesOmzetPerMaand(s) {
   s = s || SHAKES;
   return Math.round(s.prijs * s.perDag * s.dagenPerMaand);
-}
-
-/** Wat je per maand overhoudt (excl. btw); hele euro's. */
-function shakesPerMaand(s) {
-  s = s || SHAKES;
-  return Math.round(shakeMarge(s) * s.perDag * s.dagenPerMaand);
 }
 
 /** "€5,95", "€3.300" (notatie zoals het rekenvoorbeeld in "Zo werkt het"). */
@@ -73,12 +57,9 @@ function shakesStapHtml(esc) {
     '<ul class="sh-punten"><li>De blender is compact en heeft geen wateraansluiting nodig</li>' +
       '<li>Nauwelijks extra handelingen</li><li>De shakes bewaar je in je gewone vriezer</li></ul>' +
     '<div class="melding-blok mb-info">1 op de 5 klanten van Chickito Chicken bestelt er een shake bij.</div>' +
-    '<div class="sub-label">Rekenvoorbeeld (indicatie)</div>' +
-    p('Bij gemiddeld ' + s.perDag + ' shakes per dag à ' + esc(euroKort(s.prijs)) + ' is dat ± ' +
-      esc(euroKort(shakesOmzetPerMaand(s))) + ' extra omzet per maand. Na inkoop (' + esc(euroKort(s.inkoop)) + ' per shake), ' +
-      'commissie Thuisbezorgd (' + Math.round(s.tbCommissie * 100) + '%) en vergoeding Virtualbite (' + Math.round(s.vbFee * 100) +
-      '%) houd je daar ± ' + esc(euroKort(shakesPerMaand(s))) + ' per maand van over (excl. btw).') +
-    p('Indicatie op basis van onze huidige verkoop; je eigen verkoop kan afwijken.', 'klein') +
+    '<div class="sub-label">In de praktijk</div>' +
+    p('Gemiddeld ' + s.perDag + ' shakes per dag à ' + esc(euroKort(s.prijs)) + ': dat is ± ' +
+      esc(euroKort(shakesOmzetPerMaand(s))) + ' extra omzet per maand.') +
     p('<strong>Tip:</strong> de shakes passen ook op je eigen menu. Voeg aan een vanilleshake een siroop of saus naar keuze ' +
       'toe en je maakt zo je eigen smaak, bijvoorbeeld matcha, banaan of Bueno.', 'sh-tip') +
     '<div class="groep sh-voorwaarden"><div class="groep-kop"><span>Speciale voorwaarden voor Chickito Chicken-partners</span></div>' +
