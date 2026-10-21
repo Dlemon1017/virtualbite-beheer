@@ -124,6 +124,7 @@
   // ---------- Infovenster (shakes): eigen venster met onderaan dezelfde keuze als in het formulier ----------
   var PRESENTATIE_FREAL = 'https://teken.virtualbite.nl/Presentatie_Freal.pdf';
   function toonInfoVenster(soort, waarde, uit, kies) {
+    if (document.querySelector('.info-venster')) return; // al open
     var d = veldDef(soort);
     var achter = document.createElement('div');
     achter.className = 'dialoog-achter';
@@ -176,8 +177,7 @@
           w = d.standaard;
           if (!uit) standaardOpslaan[d.veld] = w;
         }
-        return (d.intro ? '<p class="veld-intro">' + esc(d.intro) + '</p>' : '') +
-          '<div class="keuze' + (d.onderElkaar ? ' onder-elkaar' : '') + '" data-keuze="' + esc(d.veld) + '" role="group" aria-label="' +
+        return '<div class="keuze' + (d.onderElkaar ? ' onder-elkaar' : '') + '" data-keuze="' + esc(d.veld) + '" role="group" aria-label="' +
           esc(d.label) + '">' +
           KEUZES[d.keuzes].map(function (k) {
             return '<button type="button" data-waarde="' + esc(k[0]) + '" aria-pressed="' + (w === k[0]) + '"' + dis + '>' +
@@ -455,7 +455,8 @@
     };
 
     function veldBlok(d, p, uit) {
-      return '<div class="veld" data-rij="' + esc(d.veld) + '">' + labelHtml(d) + veldInvoer(d, p, uit) +
+      return '<div class="veld" data-rij="' + esc(d.veld) + '">' + (d.intro ? '<p class="veld-intro">' + esc(d.intro) + '</p>' : '') +
+        labelHtml(d) + veldInvoer(d, p, uit) +
         '<div class="veld-status" data-status="' + esc(d.veld) + '"></div></div>';
     }
 
