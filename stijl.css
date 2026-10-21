@@ -257,9 +257,11 @@ select { width: 100%; font: inherit; color: var(--tekst); background: var(--veld
 .keuze.onder-elkaar button { text-align: left; padding: 12px 14px; line-height: 1.3; }
 .shakes-stap p { margin: 0 0 10px; line-height: 1.5; }
 .shakes-stap p.klein { margin-top: -4px; }
-.shakes-stap .sub-label { font-size: 14px; font-weight: 600; margin: 16px 0 6px; }
-.shakes-stap .melding-blok { margin: 14px 0 0; }
-.sh-foto { display: block; width: 100%; height: auto; border-radius: 12px; margin: 0 0 14px; }
+/* Gelijke, ruimere afstand boven elk onderdeel (Zo werkt het, In de praktijk, Tip, voorwaarden, Wat kies je?) */
+.sh-blok { margin-top: 28px; }
+.shakes-stap .sub-label { font-size: 14px; font-weight: 600; margin: 0 0 10px; }
+.veld[data-rij="shakes"] > .label { margin-top: 28px; }
+.sh-foto { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 12px; margin: 16px 0 14px; }
 .sh-zo { display: grid; gap: 10px; }
 .sh-zo-rij { display: grid; grid-template-columns: minmax(110px, 42%) 1fr; gap: 14px; align-items: center; }
 @media (min-width: 600px) { .sh-zo-rij { grid-template-columns: 200px 1fr; } }
@@ -267,11 +269,13 @@ select { width: 100%; font: inherit; color: var(--tekst); background: var(--veld
 .shakes-stap .sh-zo-rij p { margin: 0; display: flex; gap: 10px; align-items: baseline; }
 .sh-nr { flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-size: 12px;
   font-weight: 600; background: var(--accent-zacht); color: var(--groen); transform: translateY(-1px); }
-.shakes-stap .sh-tip { margin-top: 16px; }
-.sh-punten { margin: 12px 0 0; padding-left: 20px; line-height: 1.6; }
+.sh-punten { margin: 20px 0 0; padding-left: 20px; line-height: 1.6; }
+/* Zelfde groen als de gekozen keuzeknop */
+.sh-uitgelicht { background: var(--accent-zacht); border: 1px solid var(--accent); box-shadow: inset 0 0 0 1px var(--accent);
+  border-radius: 12px; padding: 12px 14px; font-weight: 600; margin: 0 0 12px; }
 .sh-label { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600;
   background: var(--accent-zacht); color: var(--groen); white-space: nowrap; }
-.sh-voorwaarden { margin: 16px 0 6px; }
+.sh-voorwaarden { margin: 0; }
 .sh-voorwaarden .groep-kop { margin-bottom: 8px; }
 .sh-voorwaarden ul { margin: 0 0 10px; padding-left: 20px; line-height: 1.6; }
 .sh-voorwaarden p:last-child { margin-bottom: 0; }

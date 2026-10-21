@@ -140,8 +140,8 @@ var FORMULIER_STAPPEN = [
   // Standaard Ja (wordt bij het tonen opgeslagen). Niet verplicht: partners die al verder waren, lopen niet vast; de
   // partnerpagina stuurt ze wel eerst naar deze stap zolang er niets is gekozen.
   { titel: 'Thick shakes', velden: [
-    { veld: 'shakes', label: 'Wat kies je?', soort: 'keuze', keuzes: 'shakes', verplicht: false, standaard: 'ja', onderElkaar: true,
-      kop: 'Thick shakes op het Chickito Chicken-menu', inhoud: 'shakesStapHtml', naKeuze: 'shakesDownloadHtml',
+    { veld: 'shakes', label: 'Shakes op jouw locatie', soort: 'keuze', keuzes: 'shakes', verplicht: false, standaard: 'ja', onderElkaar: true,
+      kop: 'Op het menu: thick shakes', inhoud: 'shakesStapHtml', naKeuze: 'shakesDownloadHtml',
       beheerLabel: 'Shakes', beheerTekst: 'shakesTekst' }
   ] }
 ];

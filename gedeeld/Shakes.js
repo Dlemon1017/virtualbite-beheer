@@ -40,13 +40,16 @@ var PRESENTATIE_FREAL_URL = 'https://teken.virtualbite.nl/Presentatie_Freal.pdf'
 function shakesStapHtml(esc) {
   var s = SHAKES;
   var p = function (t, cls) { return '<p' + (cls ? ' class="' + cls + '"' : '') + '>' + t + '</p>'; };
+  // Elk onderdeel een eigen blok (.sh-blok) met dezelfde afstand erboven.
+  var blok = function (kop, inhoud) {
+    return '<div class="sh-blok">' + (kop ? '<div class="sub-label">' + kop + '</div>' : '') + inhoud + '</div>';
+  };
   return '<div class="shakes-stap">' +
-    '<img class="sh-foto" src="freal/blender.jpg" alt="De F\'real-blender met drie thick shakes" width="960" height="916">' +
+    '<img class="sh-foto" src="freal/blender.jpg" alt="Drie thick shakes naast de F\'real-blender" width="1120" height="630">' +
     p('Thick shakes staan standaard op het Chickito Chicken-menu: vanille, aardbei, chocolade en Cookies &amp; Cream met Oreo ' +
       '<span class="sh-label">best verkocht</span>.') +
     p('Ze worden kant-en-klaar en bevroren geleverd door onze partner Interfastfood.') +
-    '<div class="sub-label">Zo werkt het</div>' +
-    '<div class="sh-zo">' + [
+    blok('Zo werkt het', '<div class="sh-zo">' + [
       ['pick', 'Pick', 'Pak een beker uit de vriezer'],
       ['peel', 'Peel', 'Haal het dekseltje eraf'],
       ['place', 'Place', 'Zet hem in de blender: binnen 40 seconden klaar']
@@ -54,15 +57,14 @@ function shakesStapHtml(esc) {
       return '<div class="sh-zo-rij"><img src="freal/' + x[0] + '.jpg" alt="' + x[1] + '" width="560" height="280">' +
         '<p><span class="sh-nr">' + (i + 1) + '</span>' + esc(x[2]) + '</p></div>';
     }).join('') + '</div>' +
-    '<ul class="sh-punten"><li>De blender is compact en heeft geen wateraansluiting nodig</li>' +
-      '<li>Nauwelijks extra handelingen</li><li>De shakes bewaar je in je gewone vriezer</li></ul>' +
-    '<div class="melding-blok mb-info">1 op de 5 klanten van Chickito Chicken bestelt er een shake bij.</div>' +
-    '<div class="sub-label">In de praktijk</div>' +
-    p('Gemiddeld ' + s.perDag + ' shakes per dag à ' + esc(euroKort(s.prijs)) + ': dat is ± ' +
-      esc(euroKort(shakesOmzetPerMaand(s))) + ' extra omzet per maand.') +
-    p('<strong>Tip:</strong> de shakes passen ook op je eigen menu. Voeg aan een vanilleshake een siroop of saus naar keuze ' +
-      'toe en je maakt zo je eigen smaak, bijvoorbeeld matcha, banaan of Bueno.', 'sh-tip') +
-    '<div class="groep sh-voorwaarden"><div class="groep-kop"><span>Speciale voorwaarden voor Chickito Chicken-partners</span></div>' +
+      '<ul class="sh-punten"><li>De blender is compact en heeft geen wateraansluiting nodig</li>' +
+      '<li>Nauwelijks extra handelingen</li><li>De shakes bewaar je in je gewone vriezer</li></ul>') +
+    blok('In de praktijk', '<div class="sh-uitgelicht">1 op de 5 klanten van Chickito Chicken bestelt er een shake bij.</div>' +
+      p('Gemiddeld ' + s.perDag + ' shakes per dag à ' + esc(euroKort(s.prijs)) + ': dat is ± ' +
+        esc(euroKort(shakesOmzetPerMaand(s))) + ' extra omzet per maand.')) +
+    blok('Tip', p('De shakes passen ook op je eigen menu. Voeg aan een vanilleshake een siroop of saus naar keuze toe en je ' +
+      'maakt zo je eigen smaak, bijvoorbeeld matcha, banaan of Bueno.')) +
+    blok('', '<div class="groep sh-voorwaarden"><div class="groep-kop"><span>Speciale voorwaarden voor Chickito Chicken-partners</span></div>' +
       p('Via Interfastfood hebben we aantrekkelijke voorwaarden afgesproken. Je test de blender eerst ' + s.proefMaanden +
         ' maanden gratis. Daarna kies je zelf:') +
       '<ul><li>Nieuwe blender kopen: ' + esc(euroKort(s.nieuw)) + '</li><li>Occasion kopen: ' + esc(euroKort(s.occasion)) + '</li>' +
@@ -72,7 +74,8 @@ function shakesStapHtml(esc) {
       p('Optioneel: F\'real-vriezer ' + esc(euroKort(s.vriezer)) + ', alleen zinvol bij een zichtlocatie.', 'klein') +
       p('<strong>Geen risico:</strong> wil je na de proefperiode niet verder? Dan geef je de blender kosteloos terug en koopt ' +
         'Virtualbite je resterende voorraad shakes terug.') +
-    '</div></div>';
+    '</div>') +
+    '</div>';
 }
 
 /** Onder de keuze: de presentatie van F'real. */
