@@ -82,7 +82,7 @@ var KEUZES = {
 
 /**
  * Formuliervelden per stap, in de volgorde van het TB-formulier.
- * soort: tekst | naam (hoofdletter per woord) | cijfers | email | telefoon | kvk | btw | bsn | postcode | huisnummer | keuze | vinkje | tijden |
+ * soort: tekst | naam (hoofdletter per woord) | cijfers | email | telefoon | kvk | btw | iban | bsn | postcode | huisnummer | keuze | vinkje | tijden |
  *        postcoderegels (max. 5 regels, elk één postcode of reeks; opgeslagen als tekst met een regel per postcode).
  * verplicht: true/false of een functie (g) => boolean. toon: functie (g) => boolean (verborgen = niet bewaren,
  * behalve het locatieadres: dat wordt dan een kopie van het vestigingsadres).
@@ -103,7 +103,11 @@ var FORMULIER_STAPPEN = [
     { veld: 'email_facturen', label: 'E-mail voor facturen', soort: 'email', verplicht: true, voorbeeld: 'Bijv. administratie@pizzeriaroma.nl' },
     { veld: 'email_communicatie', label: 'E-mail voor communicatie', soort: 'email', verplicht: true, voorbeeld: 'Bijv. info@pizzeriaroma.nl' },
     { veld: 'kvk', label: 'KvK-nummer', soort: 'kvk', verplicht: true, voorbeeld: 'Bijv. 12345678' },
-    { veld: 'btw_id', label: 'BTW-nummer', soort: 'btw', verplicht: true, voorbeeld: 'Bijv. NL123456789B01' }
+    { veld: 'btw_id', label: 'BTW-nummer', soort: 'btw', verplicht: true, voorbeeld: 'Bijv. NL123456789B01' },
+    // Uitbetaling van de weekafrekening (besluit 17-11-2026): naar Shopify (bestelportaal) en in de overeenkomst.
+    { veld: 'iban', label: 'IBAN', soort: 'iban', verplicht: true, voorbeeld: 'Bijv. NL91 ABNA 0417 1643 00', kop: 'Uitbetaling' },
+    { veld: 'iban_houder', label: 'Naam rekeninghouder (zoals op de bankpas)', soort: 'tekst', verplicht: true,
+      voorbeeld: 'Bijv. Pizzeria Roma B.V.' }
     // Restaurant-ID, BSN, EU-vestiging en PEP niet meer gevraagd (17-10-2026): blad 1 van het TB-formulier is Virtualbite.
   ] },
   { titel: 'Locatie', velden: [
@@ -261,6 +265,7 @@ function controleerVeld(d, tekst) {
   if (d.soort === 'cijfers') fout = n(normaliseerCijfers, 'Alleen cijfers.');
   if (d.soort === 'kvk') fout = n(normaliseerKvk, 'Een KvK-nummer heeft 8 cijfers.');
   if (d.soort === 'btw') { fout = normaliseerBtwId(tekst) ? '' : 'Vul het btw-id in als NL123456789B01.'; w = schoonBtwId(tekst); }
+  if (d.soort === 'iban') { fout = ibanFout(tekst); w = fout ? ibanCompact(tekst) : normaliseerIban(tekst); }
   if (d.soort === 'naam') w = hoofdletters(tekst, d.persoon, d.achternaam);
   if (d.soort === 'bsn') fout = n(normaliseerBsn, 'Dit BSN klopt niet. Controleer de 9 cijfers.');
   if (d.soort === 'keuze' && !KEUZES[d.keuzes].some(function (k) { return k[0] === tekst; })) fout = 'Maak een keuze.';
@@ -321,6 +326,27 @@ function valideerPartnerFormulier(g) {
       'de naam komt in de overeenkomst en staat vooraf ingevuld op de tekenpagina.';
   }
   return { ok: !Object.keys(fouten).length, waarde: w, fouten: fouten, waarschuwingen: waarschuwingen };
+}
+
+var NAAM_RUIS = ['bv', 'b.v', 'vof', 'v.o.f', 'hodn', 'h.o.d.n', 'holding', 'beheer', 'en', 'de', 'het', 'van', 'der', 'den',
+  'ter', 'ten', 'te', 'cv', 'nv', 'vennootschap', 'eenmanszaak', 'mevrouw', 'heer', 'dhr', 'mw', 'mevr', 'of', 'tnv'];
+
+/**
+ * Controlestap (alleen een let-op): wijkt de naam van de rekeninghouder duidelijk af van de rechtspersoon? Duidelijk =
+ * geen enkel betekenisvol woord (3+ letters) gemeen met de officiële bedrijfsnaam, de naam van de zaak of de eigenaar.
+ */
+function rekeninghouderWaarschuwing(p) {
+  var woorden = function (t) {
+    return String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z0-9.]+/)
+      .map(function (w) { return w.replace(/\.$/, ''); })
+      .filter(function (w) { return w.replace(/\./g, '').length >= 3 && NAAM_RUIS.indexOf(w) === -1; })
+      .map(function (w) { return w.replace(/\./g, ''); });
+  };
+  var houder = woorden(p.iban_houder);
+  if (!houder.length) return '';
+  var bekend = woorden([p.bedrijfsnaam, p.zaak_naam, eigenaarNaam(p)].join(' '));
+  if (houder.some(function (w) { return bekend.indexOf(w) !== -1; })) return '';
+  return 'lijkt niet op de rechtspersoon (' + String(p.bedrijfsnaam || '').trim() + '). Klopt de rekening?';
 }
 
 /** "Jan" + "van der Berg" → "Jan van der Berg" (overeenkomst, tekenpagina). Zonder losse velden: het oude veld. */

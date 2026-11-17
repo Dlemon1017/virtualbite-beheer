@@ -42,6 +42,40 @@ function maskeerBsnInTekst(tekst) {
   return String(tekst == null ? '' : tekst).replace(/(?<!\d)\d(?:[ .-]?\d){8}(?!\d)/g, '[afgeschermd]');
 }
 
+/** Lengte van een IBAN per land (SEPA-landen); onbekend land → ongeldig. */
+var IBAN_LENGTE = { NL: 18, BE: 16, DE: 22, LU: 20, FR: 27, ES: 24, IT: 27, AT: 20, IE: 22, PT: 25, FI: 18, DK: 18, SE: 24,
+  PL: 28, CZ: 24, SK: 24, SI: 19, HR: 21, HU: 28, RO: 24, BG: 22, GR: 27, CY: 28, MT: 31, EE: 20, LV: 21, LT: 20, NO: 15,
+  IS: 26, LI: 21, CH: 21, MC: 27, SM: 27, GB: 22, GI: 23, VA: 22, AD: 24 };
+
+/** IBAN zonder spaties in hoofdletters ("nl91 abna 0417 1643 00" → "NL91ABNA0417164300"); ook ongeldig. */
+function ibanCompact(tekst) {
+  return String(tekst || '').replace(/[\s.-]/g, '').toUpperCase();
+}
+
+/** Klopt de IBAN (land, lengte, controlegetal mod 97)? Geeft '' of een melding. */
+function ibanFout(tekst) {
+  var s = ibanCompact(tekst);
+  if (!/^[A-Z]{2}\d{2}[A-Z0-9]+$/.test(s) || IBAN_LENGTE[s.slice(0, 2)] !== s.length) {
+    return 'Vul een geldige IBAN in, bijv. NL91 ABNA 0417 1643 00.';
+  }
+  var cijfers = (s.slice(4) + s.slice(0, 4)).replace(/[A-Z]/g, function (c) { return String(c.charCodeAt(0) - 55); });
+  var rest = 0;
+  for (var i = 0; i < cijfers.length; i++) rest = (rest * 10 + Number(cijfers.charAt(i))) % 97;
+  return rest === 1 ? '' : 'Deze IBAN klopt niet. Controleer de cijfers en letters.';
+}
+
+/** Geldige IBAN in groepjes van 4 ("NL91 ABNA 0417 1643 00"); ongeldig → ''. */
+function normaliseerIban(tekst) {
+  return ibanFout(tekst) ? '' : ibanCompact(tekst).replace(/(.{4})(?=.)/g, '$1 ');
+}
+
+/** "NL91 ABNA 0417 1643 00" → "NL** **** **** **43 00" (meldingen; de volledige IBAN nooit in Log of mailtekst). */
+function maskeerIban(iban) {
+  var s = ibanCompact(iban);
+  if (s.length < 8) return '';
+  return (s.slice(0, 2) + s.slice(2, -4).replace(/./g, '*') + s.slice(-4)).replace(/(.{4})(?=.)/g, '$1 ');
+}
+
 /** KvK-nummer: 8 cijfers; ongeldig → ''. */
 function normaliseerKvk(kvk) {
   var s = String(kvk || '').replace(/[\s.]/g, '');
