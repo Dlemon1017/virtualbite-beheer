@@ -24,9 +24,6 @@ var UITLEG = {
   btw_id: 'Je btw-identificatienummer, in de vorm NL123456789B01. Het staat op je facturen en in brieven van de ' +
     'Belastingdienst (of in Mijn Belastingdienst Zakelijk). Heb je een eenmanszaak, gebruik dan het btw-id en niet ' +
     'het omzetbelastingnummer.',
-  koppeling: 'Hoe de bestellingen van Thuisbezorgd bij jou binnenkomen. Terminal: een apparaat van Thuisbezorgd ' +
-    '(€ 250 eenmalig en € 2,50 per week). POS-API: de bestellingen komen rechtstreeks in je kassasysteem. Twijfel je? ' +
-    'Kies \'Other\', dan zoeken we het samen uit.',
   // {min_van}/{min_tot}: minimale openingstijd uit Instellingen (uitlegTekst).
   tijden: 'Per dag kun je twee tijdvakken invullen, bijvoorbeeld een middagblok (11:30-14:00) en een avondblok ' +
     '(17:00-21:30). Laat een dag leeg als je dan gesloten bent. Volgens de overeenkomst ben je op vrijdag, zaterdag, ' +
@@ -75,7 +72,6 @@ var MIN_OPEN_DAGEN = 5;
 var KEUZES = {
   rechtsvorm: [['eenmanszaak', 'Eenmanszaak'], ['vof', 'Vof'], ['bv', 'B.V.'], ['anders', 'Anders']],
   ja_nee: [['ja', 'Ja'], ['nee', 'Nee']],
-  koppeling: [['tconnect', 'T-Connect'], ['terminal', 'Terminal'], ['pos_api', 'POS-API'], ['other', 'Other']],
   shakes: [['ja', 'Ja, ik wil de gratis proef'], ['later', 'Ik beslis later'], ['nee', 'Nee, zet de shakes uit voor mijn locatie']]
 };
 
@@ -123,9 +119,7 @@ var FORMULIER_STAPPEN = [
     { veld: 'locatie_mobiel', label: 'Mobiel contactpersoon locatie', soort: 'telefoon', verplicht: true, voorbeeld: 'Bijv. 0612345678' }
   ] },
   { titel: 'Overzicht en services', velden: [
-    { veld: 'koppeling', label: 'Hoe ontvang je de bestellingen? (koppeling)', soort: 'keuze', keuzes: 'koppeling', verplicht: true },
-    { veld: 'koppeling_anders', label: 'Toelichting koppeling', soort: 'tekst', voorbeeld: 'Bijv. de naam van je kassasysteem',
-      verplicht: function (g) { return g.koppeling === 'other'; }, toon: function (g) { return g.koppeling === 'other'; } },
+    // Koppeling: geen vraag meer (besluit 17-11-2026); op het TB-formulier altijd Terminal (TbVelden.js).
     { veld: 'afhalen', label: 'Kunnen klanten afhalen?', soort: 'keuze', keuzes: 'ja_nee', verplicht: true }
   ] },
   { titel: 'Bezorggebied', velden: [
